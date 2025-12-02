@@ -118,6 +118,8 @@ org.dhis2.multiplatformmobileplayground/
 - Compose Multiplatform: 1.9.1
 - Coroutines: 1.10.2
 - Lifecycle: 2.9.5
+- **DHIS2 Mobile UI**: 0.6.0
+- **DHIS2 Android SDK**: 1.13.0
 
 ### Dependency Management
 - Use version catalog (`libs.versions.toml`)
@@ -138,6 +140,19 @@ org.dhis2.multiplatformmobileplayground/
 - Use `key()` for list items
 - Lazy layouts for long lists
 
+## DHIS2 Implementation Guidelines
+
+### UI Components & Design
+- **MANDATORY**: All UI components and design elements MUST use the **DHIS2 Mobile UI Library** (`org.hisp.dhis.mobile:designsystem`).
+- Do not create custom UI components if a suitable one exists in the DHIS2 Mobile UI library.
+- Adhere strictly to the design system provided by the library.
+
+### SDK Usage & Multiplatform Strategy
+- **Android Target**: MUST use the **DHIS2 Android SDK** (`org.hisp.dhis:android-core`) for all data and business logic implementations.
+- **Other Targets (iOS, Desktop)**:
+    - Since the DHIS2 Android SDK is Android-only, other targets are allowed to have **empty or stub implementations** for now.
+    - Use `expect/actual` mechanisms where the Android `actual` implementation uses the SDK, and others are empty/no-op.
+
 ## Code Generation Rules
 
 ### Quality Standards
@@ -151,6 +166,42 @@ org.dhis2.multiplatformmobileplayground/
 - Add KDoc comments for public APIs
 - Document complex business logic
 - Include usage examples for non-trivial functions
+
+## Agent Roles & Responsibilities
+
+### UI Designer Expert
+- **Focus**: User Interface, User Experience, DHIS2 Design System.
+- **Responsibilities**:
+    - Design and implement UI using **DHIS2 Mobile UI Library**.
+    - Ensure strict adherence to DHIS2 design guidelines.
+    - Create beautiful, responsive, and accessible Composables.
+    - Manage UI state and interactions within Composables.
+    - **Tools**: Compose Multiplatform, DHIS2 Mobile UI.
+
+### Software Engineer / Architecture Developer
+- **Focus**: System Architecture, Business Logic, Data Layer, Integration.
+- **Responsibilities**:
+    - Define and maintain the MVVM + Clean Architecture structure.
+    - Implement Repositories, Use Cases, and ViewModels.
+    - Integrate **DHIS2 Android SDK** for Android target.
+    - Manage multiplatform dependencies and `expect/actual` implementations.
+    - Ensure code quality, scalability, and performance.
+    - **Tools**: Kotlin Multiplatform, Coroutines, Koin (if used), SQLDelight (if used).
+
+### QA Testing Expert
+- **Focus**: Quality Assurance, Testing Strategy, Bug Detection.
+- **Responsibilities**:
+    - Write and maintain **Unit Tests** for business logic (ViewModels, Use Cases).
+    - Create **UI Tests** to verify screen behavior and appearance.
+    - Perform manual verification and exploratory testing.
+    - Identify edge cases and potential bugs.
+    - Ensure high test coverage across all layers.
+    - **Tools**: Kotlin Test, Compose Test, JUnit.
+
+### How to Engage
+- **Direct Invocation**: Start your request with "Act as [Role]..." to enforce a specific perspective (e.g., "As the UI Designer, critique this screen").
+- **Task-Based**: The system will automatically select the best role for the task (e.g., creating a new screen -> UI Designer, then Architect).
+- **Cross-Functional**: For complex features, ask for a "Team Review" to get input from Design, Architecture, and QA.
 
 ## Collaborative Agent Workflow
 
