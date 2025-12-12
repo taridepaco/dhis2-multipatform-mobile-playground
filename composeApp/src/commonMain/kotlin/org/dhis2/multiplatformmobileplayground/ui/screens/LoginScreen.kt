@@ -76,8 +76,8 @@ fun LoginScreen(
             InputText(
                 title = "Server URL",
                 state = InputShellState.UNFOCUSED,
-                inputTextFieldValue = TextFieldValue(uiState.serverUrl),
-                onValueChanged = { viewModel.onServerUrlChanged(it?.text ?: "") },
+                inputTextFieldValue = uiState.serverUrl,
+                onValueChanged = { it?.let { viewModel.onServerUrlChanged(it) } },
                 modifier = Modifier.fillMaxWidth(),
                 isRequiredField = true,
                 imeAction = ImeAction.Next
@@ -88,8 +88,8 @@ fun LoginScreen(
             InputText(
                 title = "Username",
                 state = InputShellState.UNFOCUSED,
-                inputTextFieldValue = TextFieldValue(uiState.username),
-                onValueChanged = { viewModel.onUsernameChanged(it?.text ?: "") },
+                inputTextFieldValue = uiState.username,
+                onValueChanged = { it?.let { viewModel.onUsernameChanged(it) } },
                 modifier = Modifier.fillMaxWidth(),
                 isRequiredField = true,
                 imeAction = ImeAction.Next
@@ -100,8 +100,8 @@ fun LoginScreen(
             InputText(
                 title = "Password",
                 state = InputShellState.UNFOCUSED,
-                inputTextFieldValue = TextFieldValue(uiState.password),
-                onValueChanged = { viewModel.onPasswordChanged(it?.text ?: "") },
+                inputTextFieldValue = uiState.password,
+                onValueChanged = { it?.let { viewModel.onPasswordChanged(it) } },
                 modifier = Modifier.fillMaxWidth(),
                 isRequiredField = true,
                 imeAction = ImeAction.Done

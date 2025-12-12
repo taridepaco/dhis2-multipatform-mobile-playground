@@ -1,5 +1,6 @@
 package org.dhis2.multiplatformmobileplayground.viewmodel
 
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,32 +18,32 @@ class LoginViewModel(private val loginRepository: LoginRepository) : ViewModel()
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
     
-    fun onServerUrlChanged(serverUrl: String) {
+    fun onServerUrlChanged(serverUrl: TextFieldValue) {
         _uiState.update { it.copy(serverUrl = serverUrl, errorMessage = null) }
     }
     
-    fun onUsernameChanged(username: String) {
+    fun onUsernameChanged(username: TextFieldValue) {
         _uiState.update { it.copy(username = username, errorMessage = null) }
     }
     
-    fun onPasswordChanged(password: String) {
+    fun onPasswordChanged(password: TextFieldValue) {
         _uiState.update { it.copy(password = password, errorMessage = null) }
     }
     
     fun onLoginClicked() {
         val currentState = _uiState.value
         
-        if (currentState.serverUrl.isBlank()) {
+        if (currentState.serverUrl.text.isBlank()) {
             _uiState.update { it.copy(errorMessage = "Server URL is required") }
             return
         }
         
-        if (currentState.username.isBlank()) {
+        if (currentState.username.text.isBlank()) {
             _uiState.update { it.copy(errorMessage = "Username is required") }
             return
         }
         
-        if (currentState.password.isBlank()) {
+        if (currentState.password.text.isBlank()) {
             _uiState.update { it.copy(errorMessage = "Password is required") }
             return
         }
@@ -51,9 +52,9 @@ class LoginViewModel(private val loginRepository: LoginRepository) : ViewModel()
         
         viewModelScope.launch {
             val credentials = LoginCredentials(
-                serverUrl = currentState.serverUrl,
-                username = currentState.username,
-                password = currentState.password
+                serverUrl = currentState.serverUrl.text,
+                username = currentState.username.text,
+                password = currentState.password.text
             )
             
             when (val result = loginRepository.login(credentials)) {
