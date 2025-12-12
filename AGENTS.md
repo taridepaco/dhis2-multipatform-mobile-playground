@@ -146,9 +146,11 @@ org.dhis2.multiplatformmobileplayground/
 - **MANDATORY**: All UI components and design elements MUST use the **DHIS2 Mobile UI Library** (`org.hisp.dhis.mobile:designsystem`).
 - Do not create custom UI components if a suitable one exists in the DHIS2 Mobile UI library.
 - Adhere strictly to the design system provided by the library.
+ - **Documentation**: https://developers.dhis2.org/docs/mobile/mobile-ui/overview/
 
 ### SDK Usage & Multiplatform Strategy
 - **Android Target**: MUST use the **DHIS2 Android SDK** (`org.hisp.dhis:android-core`) for all data and business logic implementations.
+ - **Documentation**: https://github.com/dhis2/dhis2-android-sdk/tree/master/docs/content/developer
 - **Other Targets (iOS, Desktop)**:
     - Since the DHIS2 Android SDK is Android-only, other targets are allowed to have **empty or stub implementations** for now.
     - Use `expect/actual` mechanisms where the Android `actual` implementation uses the SDK, and others are empty/no-op.
