@@ -12,4 +12,8 @@ actual object RepositoryFactory {
     actual fun createLoginRepository(): LoginRepository {
         return LoginRepositoryImpl(applicationContext)
     }
+    
+    actual fun createUserRepository(): UserRepository {
+        return UserRepositoryImpl(applicationContext)
+    }
 }

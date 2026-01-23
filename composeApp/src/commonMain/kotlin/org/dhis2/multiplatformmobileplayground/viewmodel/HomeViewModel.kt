@@ -1,14 +1,27 @@
 package org.dhis2.multiplatformmobileplayground.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.dhis2.multiplatformmobileplayground.data.repository.UserRepository
 import org.dhis2.multiplatformmobileplayground.model.HomeUiState
-import org.dhis2.multiplatformmobileplayground.model.UserInfo
 
-class HomeViewModel(userInfo: UserInfo) : ViewModel() {
+class HomeViewModel(private val userRepository: UserRepository) : ViewModel() {
     
-    private val _uiState = MutableStateFlow(HomeUiState(userInfo = userInfo))
+    private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    
+    init {
+        loadUserInfo()
+    }
+    
+    private fun loadUserInfo() {
+        viewModelScope.launch {
+            val userInfo = userRepository.getCurrentUser()
+            _uiState.value = HomeUiState(userInfo = userInfo)
+        }
+    }
 }
