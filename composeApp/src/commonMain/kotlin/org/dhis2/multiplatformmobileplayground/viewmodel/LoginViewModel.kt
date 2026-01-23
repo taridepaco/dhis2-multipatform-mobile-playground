@@ -63,7 +63,8 @@ class LoginViewModel(private val loginRepository: LoginRepository) : ViewModel()
                         it.copy(
                             isLoading = false,
                             isLoginSuccessful = true,
-                            errorMessage = null
+                            errorMessage = null,
+                            userInfo = result.userInfo
                         )
                     }
                 }

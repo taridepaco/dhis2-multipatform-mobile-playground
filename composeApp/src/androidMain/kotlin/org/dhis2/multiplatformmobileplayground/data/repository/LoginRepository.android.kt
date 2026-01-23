@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.dhis2.multiplatformmobileplayground.model.LoginCredentials
 import org.dhis2.multiplatformmobileplayground.model.LoginResult
+import org.dhis2.multiplatformmobileplayground.model.UserInfo
 import org.hisp.dhis.android.core.D2
 import org.hisp.dhis.android.core.D2Configuration
 import org.hisp.dhis.android.core.D2Manager
@@ -20,13 +21,19 @@ class LoginRepositoryImpl(private val context: Context) : LoginRepository {
             val d2 = D2Manager.blockingInstantiateD2(configuration)
                 ?: throw IllegalStateException("Failed to instantiate D2")
             
-            d2.userModule().logIn(
+            val user = d2.userModule().logIn(
                 credentials.username,
                 credentials.password,
                 credentials.serverUrl
             ).blockingGet()
             
-            LoginResult.Success
+            val userInfo = UserInfo(
+                username = credentials.username,
+                firstName = user.firstName() ?: "",
+                serverUrl = credentials.serverUrl
+            )
+            
+            LoginResult.Success(userInfo)
         } catch (e: Exception) {
             LoginResult.Error(e.message ?: "Unknown error occurred")
         }

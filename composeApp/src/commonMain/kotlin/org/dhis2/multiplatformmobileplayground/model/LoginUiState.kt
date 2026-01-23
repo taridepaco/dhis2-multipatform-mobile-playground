@@ -8,5 +8,6 @@ data class LoginUiState(
     val password: TextFieldValue = TextFieldValue("Android123"),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val isLoginSuccessful: Boolean = false
+    val isLoginSuccessful: Boolean = false,
+    val userInfo: UserInfo? = null
 )
