@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -82,14 +83,26 @@ class HomeViewModelTest {
         // Execute scheduled tasks (launch blocks)
         runCurrent()
         
-        // At this point, coroutine should be running and suspended at repo call
+        // At this point, coroutine should be running and suspended at sync call
+        // We expect isSyncing to be true, isLoading to be false (as sync happens first)
+        assertTrue(viewModel.uiState.value.isSyncing)
+        assertFalse(viewModel.uiState.value.isLoading)
+        
+        // Since we have two delays (sync + get), total delay is 2000ms.
+        // Let's advance 1000ms (sync done)
+        advanceTimeBy(1001)
+        runCurrent()
+        
+        // Now sync should be done, and we should be fetching programs (isLoading = true)
+        assertFalse(viewModel.uiState.value.isSyncing)
         assertTrue(viewModel.uiState.value.isLoading)
         
-        // Advance time to finish repo call
+        // Advance remaining time
         advanceUntilIdle()
         
         // After loading completes, loading should be false
         assertFalse(viewModel.uiState.value.isLoading)
+        assertFalse(viewModel.uiState.value.isSyncing)
     }
     
     @Test

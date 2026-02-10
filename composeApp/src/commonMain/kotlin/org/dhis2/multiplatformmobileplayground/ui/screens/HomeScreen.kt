@@ -96,44 +96,6 @@ fun HomeScreen(
                 
                 Spacer(modifier = Modifier.height(32.dp))
                 
-                // Show loading indicator if programs are being loaded
-                if (uiState.isLoading) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-                
-                // Show error message if there was an error loading programs
-                uiState.error?.let { error ->
-                    Text(
-                        text = "Error: $error",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-                
-                // Show programs list
-                if (uiState.programs.isNotEmpty()) {
-                    Text(
-                        text = "Your Programs",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(uiState.programs) { program ->
-                            ProgramCard(program = program)
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(32.dp))
-                
                 Card(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -173,6 +135,53 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                // Show loading indicator if programs are being loaded
+                if (uiState.isLoading || uiState.isSyncing) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    if (uiState.isSyncing) {
+                        Text(
+                            text = "Syncing metadata...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+                
+                // Show error message if there was an error loading programs
+                uiState.error?.let { error ->
+                    Text(
+                        text = "Error: $error",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                // Show programs list
+                if (uiState.programs.isNotEmpty()) {
+                    Text(
+                        text = "Your Programs",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(uiState.programs) { program ->
+                            ProgramCard(program = program)
+                        }
                     }
                 }
             }
