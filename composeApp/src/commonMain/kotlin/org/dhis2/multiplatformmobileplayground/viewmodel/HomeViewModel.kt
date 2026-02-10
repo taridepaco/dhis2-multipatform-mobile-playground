@@ -34,6 +34,7 @@ class HomeViewModel(
         viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true)
+                programRepository.syncPrograms()
                 val programs = programRepository.getUserPrograms()
                 _uiState.value = _uiState.value.copy(
                     programs = programs,

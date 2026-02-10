@@ -154,4 +154,11 @@ class FakeProgramRepository : ProgramRepository {
         }
         return programs
     }
+
+    override suspend fun syncPrograms() {
+        if (executionDelay > 0) {
+            kotlinx.coroutines.delay(executionDelay)
+        }
+        // No-op for fake
+    }
 }

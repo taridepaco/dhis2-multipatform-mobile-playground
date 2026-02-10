@@ -26,4 +26,14 @@ class ProgramRepositoryImpl(private val context: Context) : ProgramRepository {
             emptyList()
         }
     }
+
+    override suspend fun syncPrograms() = withContext(Dispatchers.IO) {
+        try {
+            val d2 = D2Manager.getD2() ?: return@withContext
+            d2.metadataModule().blockingDownload()
+        } catch (e: Exception) {
+            // Handle error or log it
+            e.printStackTrace()
+        }
+    }
 }
