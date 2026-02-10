@@ -16,4 +16,8 @@ actual object RepositoryFactory {
     actual fun createUserRepository(): UserRepository {
         return UserRepositoryImpl(applicationContext)
     }
+    
+    actual fun createProgramRepository(): ProgramRepository {
+        return ProgramRepositoryImpl(applicationContext)
+    }
 }

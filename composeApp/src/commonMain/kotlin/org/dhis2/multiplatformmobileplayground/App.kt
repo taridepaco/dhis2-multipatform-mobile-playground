@@ -41,7 +41,10 @@ fun App() {
             )
         } else {
             val homeViewModel: HomeViewModel = viewModel {
-                HomeViewModel(RepositoryFactory.createUserRepository())
+                HomeViewModel(
+                    RepositoryFactory.createUserRepository(),
+                    RepositoryFactory.createProgramRepository()
+                )
             }
             
             HomeScreen(

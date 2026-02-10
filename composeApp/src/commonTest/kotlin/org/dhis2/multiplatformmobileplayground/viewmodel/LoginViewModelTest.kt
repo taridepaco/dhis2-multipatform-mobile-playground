@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.setMain
 import org.dhis2.multiplatformmobileplayground.data.repository.LoginRepository
 import org.dhis2.multiplatformmobileplayground.model.LoginCredentials
 import org.dhis2.multiplatformmobileplayground.model.LoginResult
+import org.dhis2.multiplatformmobileplayground.model.UserInfo
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -32,6 +33,10 @@ class LoginViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeRepository = FakeLoginRepository()
         viewModel = LoginViewModel(fakeRepository)
+        // Clear default values to match test expectations
+        viewModel.onServerUrlChanged(TextFieldValue(""))
+        viewModel.onUsernameChanged(TextFieldValue(""))
+        viewModel.onPasswordChanged(TextFieldValue(""))
     }
     
     @AfterTest
@@ -101,7 +106,7 @@ class LoginViewModelTest {
     
     @Test
     fun shouldLoginSuccessfullyWhenCredentialsAreValid() = runTest {
-        fakeRepository.loginResult = LoginResult.Success
+        fakeRepository.loginResult = LoginResult.Success(UserInfo("admin", "Admin", "https://play.dhis2.org/2.40.0"))
         viewModel.onServerUrlChanged(TextFieldValue("https://play.dhis2.org/2.40.0"))
         viewModel.onUsernameChanged(TextFieldValue("admin"))
         viewModel.onPasswordChanged(TextFieldValue("district"))
@@ -132,7 +137,7 @@ class LoginViewModelTest {
     
     @Test
     fun shouldSetLoadingStateDuringLogin() = runTest {
-        fakeRepository.loginResult = LoginResult.Success
+        fakeRepository.loginResult = LoginResult.Success(UserInfo("admin", "Admin", "https://play.dhis2.org/2.40.0"))
         viewModel.onServerUrlChanged(TextFieldValue("https://play.dhis2.org/2.40.0"))
         viewModel.onUsernameChanged(TextFieldValue("admin"))
         viewModel.onPasswordChanged(TextFieldValue("district"))
@@ -164,7 +169,7 @@ class LoginViewModelTest {
 }
 
 class FakeLoginRepository : LoginRepository {
-    var loginResult: LoginResult = LoginResult.Success
+    var loginResult: LoginResult = LoginResult.Success(UserInfo("admin", "Admin", "https://play.dhis2.org/2.40.0"))
     
     override suspend fun login(credentials: LoginCredentials): LoginResult {
         return loginResult
