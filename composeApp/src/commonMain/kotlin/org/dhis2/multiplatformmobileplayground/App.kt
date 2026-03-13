@@ -1,13 +1,14 @@
 package org.dhis2.multiplatformmobileplayground
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.dhis2.multiplatformmobileplayground.data.repository.RepositoryFactory
 import org.dhis2.multiplatformmobileplayground.ui.screens.HomeScreen
@@ -20,36 +21,35 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Preview
 fun App() {
     MaterialTheme {
-        var isLoggedIn by remember { mutableStateOf(false) }
-        
-        if (!isLoggedIn) {
-            val loginViewModel: LoginViewModel = viewModel {
-                LoginViewModel(RepositoryFactory.createLoginRepository())
-            }
-            
-            val loginUiState by loginViewModel.uiState.collectAsState()
-            
-            LaunchedEffect(loginUiState.isLoginSuccessful) {
-                if (loginUiState.isLoginSuccessful) {
-                    isLoggedIn = true
+        val loginViewModel: LoginViewModel = viewModel {
+            LoginViewModel(RepositoryFactory.createLoginRepository())
+        }
+        val loginUiState by loginViewModel.uiState.collectAsState()
+
+        when {
+            loginUiState.isCheckingAuth -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
             }
-            
-            LoginScreen(
-                viewModel = loginViewModel,
-                onLoginSuccess = { }
-            )
-        } else {
-            val homeViewModel: HomeViewModel = viewModel {
-                HomeViewModel(
-                    RepositoryFactory.createUserRepository(),
-                    RepositoryFactory.createProgramRepository()
+            loginUiState.isLoginSuccessful -> {
+                val homeViewModel: HomeViewModel = viewModel {
+                    HomeViewModel(
+                        RepositoryFactory.createUserRepository(),
+                        RepositoryFactory.createProgramRepository()
+                    )
+                }
+                HomeScreen(viewModel = homeViewModel)
+            }
+            else -> {
+                LoginScreen(
+                    viewModel = loginViewModel,
+                    onLoginSuccess = { }
                 )
             }
-            
-            HomeScreen(
-                viewModel = homeViewModel
-            )
         }
     }
 }

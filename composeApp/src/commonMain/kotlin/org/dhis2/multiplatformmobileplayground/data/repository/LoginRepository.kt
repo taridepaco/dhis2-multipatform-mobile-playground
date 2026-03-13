@@ -5,4 +5,5 @@ import org.dhis2.multiplatformmobileplayground.model.LoginResult
 
 interface LoginRepository {
     suspend fun login(credentials: LoginCredentials): LoginResult
+    suspend fun isUserLoggedIn(): Boolean
 }

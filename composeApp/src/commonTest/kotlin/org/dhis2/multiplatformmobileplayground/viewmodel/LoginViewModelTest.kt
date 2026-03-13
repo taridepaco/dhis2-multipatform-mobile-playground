@@ -32,7 +32,7 @@ class LoginViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         fakeRepository = FakeLoginRepository()
-        viewModel = LoginViewModel(fakeRepository)
+        viewModel = LoginViewModel(fakeRepository, testDispatcher)
         // Clear default values to match test expectations
         viewModel.onServerUrlChanged(TextFieldValue(""))
         viewModel.onUsernameChanged(TextFieldValue(""))
@@ -105,7 +105,7 @@ class LoginViewModelTest {
     }
     
     @Test
-    fun shouldLoginSuccessfullyWhenCredentialsAreValid() = runTest {
+    fun shouldLoginSuccessfullyWhenCredentialsAreValid() = runTest(testDispatcher) {
         fakeRepository.loginResult = LoginResult.Success(UserInfo("admin", "Admin", "https://play.dhis2.org/2.40.0"))
         viewModel.onServerUrlChanged(TextFieldValue("https://play.dhis2.org/2.40.0"))
         viewModel.onUsernameChanged(TextFieldValue("admin"))
@@ -120,7 +120,7 @@ class LoginViewModelTest {
     }
     
     @Test
-    fun shouldShowErrorWhenLoginFails() = runTest {
+    fun shouldShowErrorWhenLoginFails() = runTest(testDispatcher) {
         val errorMessage = "Invalid credentials"
         fakeRepository.loginResult = LoginResult.Error(errorMessage)
         viewModel.onServerUrlChanged(TextFieldValue("https://play.dhis2.org/2.40.0"))
@@ -136,7 +136,7 @@ class LoginViewModelTest {
     }
     
     @Test
-    fun shouldSetLoadingStateDuringLogin() = runTest {
+    fun shouldSetLoadingStateDuringLogin() = runTest(testDispatcher) {
         fakeRepository.loginResult = LoginResult.Success(UserInfo("admin", "Admin", "https://play.dhis2.org/2.40.0"))
         viewModel.onServerUrlChanged(TextFieldValue("https://play.dhis2.org/2.40.0"))
         viewModel.onUsernameChanged(TextFieldValue("admin"))
@@ -166,11 +166,36 @@ class LoginViewModelTest {
         
         assertNull(viewModel.uiState.value.errorMessage)
     }
+
+    @Test
+    fun shouldNavigateToHomeWhenUserIsAlreadyLoggedIn() = runTest(testDispatcher) {
+        fakeRepository.isLoggedIn = true
+        viewModel = LoginViewModel(fakeRepository, testDispatcher)
+
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isCheckingAuth)
+        assertTrue(viewModel.uiState.value.isLoginSuccessful)
+    }
+
+    @Test
+    fun shouldShowLoginScreenWhenUserIsNotLoggedIn() = runTest(testDispatcher) {
+        fakeRepository.isLoggedIn = false
+        viewModel = LoginViewModel(fakeRepository, testDispatcher)
+
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isCheckingAuth)
+        assertFalse(viewModel.uiState.value.isLoginSuccessful)
+    }
 }
 
 class FakeLoginRepository : LoginRepository {
     var loginResult: LoginResult = LoginResult.Success(UserInfo("admin", "Admin", "https://play.dhis2.org/2.40.0"))
-    
+    var isLoggedIn: Boolean = false
+
+    override suspend fun isUserLoggedIn(): Boolean = isLoggedIn
+
     override suspend fun login(credentials: LoginCredentials): LoginResult {
         return loginResult
     }
