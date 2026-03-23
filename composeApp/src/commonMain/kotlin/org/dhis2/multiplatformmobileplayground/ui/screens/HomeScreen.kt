@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.dhis2.multiplatformmobileplayground.model.Program
 import org.dhis2.multiplatformmobileplayground.viewmodel.HomeViewModel
+import org.hisp.dhis.mobile.ui.designsystem.component.Button
+import org.hisp.dhis.mobile.ui.designsystem.component.ButtonStyle
 
 @Composable
 fun ProgramCard(program: Program) {
@@ -138,7 +140,17 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    text = "Sync Metadata",
+                    style = ButtonStyle.FILLED,
+                    enabled = !uiState.isSyncing,
+                    onClick = { viewModel.syncMetadata() },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
                 
                 // Show loading indicator if programs are being loaded
                 if (uiState.isLoading || uiState.isSyncing) {

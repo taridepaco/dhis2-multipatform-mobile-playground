@@ -34,10 +34,13 @@ class HomeViewModel(
     private fun loadUserPrograms() {
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isSyncing = true) }
-                programRepository.syncPrograms()
+                if (!programRepository.hasMetadata()) {
+                    _uiState.update { it.copy(isSyncing = true) }
+                    programRepository.syncPrograms()
+                    _uiState.update { it.copy(isSyncing = false) }
+                }
                 
-                _uiState.update { it.copy(isSyncing = false, isLoading = true) }
+                _uiState.update { it.copy(isLoading = true) }
                 val programs = programRepository.getUserPrograms()
                 
                 _uiState.update { 
@@ -51,6 +54,31 @@ class HomeViewModel(
                     it.copy(
                         error = e.message,
                         isLoading = false,
+                        isSyncing = false
+                    )
+                }
+            }
+        }
+    }
+
+    fun syncMetadata() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isSyncing = true) }
+                programRepository.syncPrograms()
+
+                val programs = programRepository.getUserPrograms()
+
+                _uiState.update {
+                    it.copy(
+                        programs = programs,
+                        isSyncing = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        error = e.message,
                         isSyncing = false
                     )
                 }

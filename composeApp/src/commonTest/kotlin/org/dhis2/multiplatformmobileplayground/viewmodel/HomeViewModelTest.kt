@@ -77,6 +77,7 @@ class HomeViewModelTest {
     
     @Test
     fun shouldSetLoadingStateWhenLoadingPrograms() = runTest {
+        // Default behavior is sync happens (metadata missing or checked), so we expect sync delay
         fakeProgramRepository.executionDelay = 1000
         viewModel = HomeViewModel(fakeUserRepository, fakeProgramRepository)
         
@@ -141,6 +142,58 @@ class HomeViewModelTest {
         assertNull(uiState.userInfo)
         assertFalse(uiState.isLoading)
     }
+
+    @Test
+    fun shouldNotSyncWhenMetadataExists() = runTest {
+        fakeProgramRepository.hasMetadata = true
+        fakeProgramRepository.executionDelay = 1000
+        viewModel = HomeViewModel(fakeUserRepository, fakeProgramRepository)
+
+        runCurrent()
+
+        // Sync should be skipped, so isSyncing should be false initially (only loading programs)
+        assertFalse(viewModel.uiState.value.isSyncing)
+        
+        // Wait for program loading
+        advanceUntilIdle()
+        
+        assertEquals(0, fakeProgramRepository.syncCallCount)
+    }
+
+    @Test
+    fun shouldSyncWhenMetadataMissing() = runTest {
+        fakeProgramRepository.hasMetadata = false
+        fakeProgramRepository.executionDelay = 1000
+        viewModel = HomeViewModel(fakeUserRepository, fakeProgramRepository)
+
+        runCurrent()
+
+        // Sync should happen
+        assertTrue(viewModel.uiState.value.isSyncing)
+
+        advanceUntilIdle()
+
+        assertEquals(1, fakeProgramRepository.syncCallCount)
+    }
+
+    @Test
+    fun shouldSyncManually() = runTest {
+        fakeProgramRepository.executionDelay = 1000
+        viewModel = HomeViewModel(fakeUserRepository, fakeProgramRepository)
+        advanceUntilIdle() // Initial load
+        
+        val initialSyncCount = fakeProgramRepository.syncCallCount
+        
+        viewModel.syncMetadata()
+        runCurrent() // Let the coroutine start
+        
+        assertTrue(viewModel.uiState.value.isSyncing)
+        
+        advanceUntilIdle() // Finish the sync
+        
+        assertEquals(initialSyncCount + 1, fakeProgramRepository.syncCallCount)
+        assertFalse(viewModel.uiState.value.isSyncing)
+    }
 }
 
 class FakeUserRepository : UserRepository {
@@ -157,6 +210,8 @@ class FakeProgramRepository : ProgramRepository {
     )
     var shouldThrowError: Boolean = false
     var executionDelay: Long = 0
+    var hasMetadata: Boolean = false
+    var syncCallCount: Int = 0
     
     override suspend fun getUserPrograms(): List<Program> {
         if (executionDelay > 0) {
@@ -169,9 +224,14 @@ class FakeProgramRepository : ProgramRepository {
     }
 
     override suspend fun syncPrograms() {
+        syncCallCount++
         if (executionDelay > 0) {
             kotlinx.coroutines.delay(executionDelay)
         }
         // No-op for fake
+    }
+
+    override suspend fun hasMetadata(): Boolean {
+        return hasMetadata
     }
 }

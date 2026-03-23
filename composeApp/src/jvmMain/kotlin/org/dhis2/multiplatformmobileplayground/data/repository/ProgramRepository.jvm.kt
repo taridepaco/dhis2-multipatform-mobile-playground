@@ -10,4 +10,8 @@ class ProgramRepositoryImpl : ProgramRepository {
     override suspend fun syncPrograms() {
         // No-op for JVM
     }
+
+    override suspend fun hasMetadata(): Boolean {
+        return false
+    }
 }

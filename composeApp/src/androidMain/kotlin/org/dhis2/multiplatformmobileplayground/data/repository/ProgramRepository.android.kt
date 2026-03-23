@@ -36,4 +36,13 @@ class ProgramRepositoryImpl(private val context: Context) : ProgramRepository {
             e.printStackTrace()
         }
     }
+
+    override suspend fun hasMetadata(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val d2 = D2Manager.getD2() ?: return@withContext false
+            return@withContext d2.programModule().programs().blockingCount() > 0
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
 }

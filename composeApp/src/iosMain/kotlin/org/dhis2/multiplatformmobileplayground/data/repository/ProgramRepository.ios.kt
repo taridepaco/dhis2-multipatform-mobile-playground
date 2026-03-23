@@ -10,4 +10,8 @@ class ProgramRepositoryImpl : ProgramRepository {
     override suspend fun syncPrograms() {
         // No-op for iOS
     }
+
+    override suspend fun hasMetadata(): Boolean {
+        return false
+    }
 }
