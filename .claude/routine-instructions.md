@@ -29,6 +29,7 @@ For more information about architecture, design patterns and code conventions go
 - PR body must include:
     - `Closes #{number}` so GitHub auto-links the issue
     - A short summary of what changed and why
+    - Claude Skills used to implement the solution (e.g., "Used `add-dsl-command` skill to add a new command for listing events.")
     - Confirmation that `./gradlew :composeApp:jvmTest` passed
 
 ## What to Do When the Issue Is Ambiguous
