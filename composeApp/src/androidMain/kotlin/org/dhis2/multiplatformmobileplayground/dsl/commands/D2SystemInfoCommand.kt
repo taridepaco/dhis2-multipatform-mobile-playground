@@ -27,7 +27,6 @@ class D2SystemInfoCommand : CommandHandler {
             append("{")
             append("\"contextPath\":${jsonString(info.contextPath() ?: "")},")
             append("\"version\":${jsonString(info.version() ?: "")},")
-            append("\"revision\":${jsonString(info.revision() ?: "")},")
             append("\"serverDate\":${jsonString(info.serverDate()?.toString() ?: "")}")
             append("}")
         }
@@ -35,7 +34,6 @@ class D2SystemInfoCommand : CommandHandler {
             appendLine("System Info:")
             appendLine("  Server:   ${info.contextPath() ?: "N/A"}")
             appendLine("  Version:  ${info.version() ?: "N/A"}")
-            append("  Revision: ${info.revision() ?: "N/A"}")
         }
         DslResult.Success(json = json, display = display)
     }
