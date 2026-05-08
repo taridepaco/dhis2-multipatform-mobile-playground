@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import org.dhis2.multiplatformmobileplayground.model.HomeUiState
 import org.dhis2.multiplatformmobileplayground.model.Program
 import org.dhis2.multiplatformmobileplayground.viewmodel.HomeViewModel
+import org.dhis2.multiplatformmobileplayground.viewmodel.NotebookViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 private enum class HomeTab {
     HOME, NOTEBOOK
@@ -79,6 +81,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val notebookViewModel: NotebookViewModel = koinViewModel()
     var selectedTab by remember { mutableStateOf(HomeTab.HOME) }
 
     Scaffold(
@@ -116,6 +119,7 @@ fun HomeScreen(
                 modifier = Modifier.padding(paddingValues)
             )
             HomeTab.NOTEBOOK -> NotebookScreen(
+                viewModel = notebookViewModel,
                 modifier = Modifier.padding(paddingValues)
             )
         }
