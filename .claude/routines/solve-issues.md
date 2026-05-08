@@ -9,14 +9,15 @@ implements solutions, and opens pull requests.
 
 ## What the Routine Does (one run)
 
-1. List all open issues in the repository.
-2. For each open issue, check whether a pull request already references it (search open PRs for
-   the issue number in the title or body, and check for branches named `fix/issue-{number}`).
-3. Skip issues that already have a linked PR.
-4. Pick the oldest unaddressed issue.
-5. Implement the solution following the rules below.
-6. Commit the changes and open a pull request.
-7. Stop — the next scheduled run will repeat from step 1.
+The routine is triggered by a GitHub webhook that carries the **triggering issue number**.
+
+1. Read the triggering issue using the issue number from the webhook context.
+2. Check whether a pull request already references it (search open PRs for the issue number
+   in the title or body, and check for branches named `fix/issue-{number}`).
+3. If a linked PR already exists, stop — no further action needed.
+4. Implement the solution for the triggering issue following the rules below.
+5. Commit the changes and open a pull request.
+6. Stop.
 
 ## Architecture Rules
 
