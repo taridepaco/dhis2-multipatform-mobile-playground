@@ -3,6 +3,8 @@ name: Auto Merge PR
 on:
   check_suite:
     types: [completed]
+  pull_request_review:
+    types: [submitted]
   workflow_dispatch:
 
 permissions:
