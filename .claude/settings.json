@@ -1,23 +1,5 @@
 {
   "enabledPlugins": {
     "code-review@claude-plugins-official": true
-  },
-  "permissions": {
-    "defaultMode": "auto",
-    "allow": [
-      "Write(.claude/**)",
-      "Edit(.claude/**)",
-      "Bash(git checkout *)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(git fetch *)",
-      "Bash(git pull *)",
-      "Bash(git status*)",
-      "Bash(git log *)",
-      "Bash(git diff *)",
-      "Bash(git branch *)",
-      "Bash(ls *)"
-    ]
   }
 }
