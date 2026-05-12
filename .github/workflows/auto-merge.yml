@@ -25,10 +25,10 @@ jobs:
             const defaultBranch = repoData.default_branch;
 
             const { data: prs } = await github.rest.pulls.list({
-              owner, repo, state: 'open', base: defaultBranch,
+              owner, repo, state: 'open', base: defaultBranch, per_page: 100,
             });
 
-            const PASSING = new Set(['success', 'skipped', 'neutral']);
+            const FAILING = new Set(['failure', 'cancelled', 'timed_out', 'action_required']);
 
             for (const pr of prs) {
               if (pr.draft) continue;
@@ -39,12 +39,12 @@ jobs:
 
               const runs = checks.check_runs;
               if (runs.length === 0) continue;
-              if (runs.some(r => r.status !== 'completed' || !PASSING.has(r.conclusion))) continue;
+              if (runs.some(r => r.status !== 'completed' || FAILING.has(r.conclusion))) continue;
 
               const { data: fullPr } = await github.rest.pulls.get({
                 owner, repo, pull_number: pr.number,
               });
-              if (fullPr.mergeable === false) continue;
+              if (fullPr.mergeable_state !== 'clean') continue;
 
               try {
                 await github.rest.pulls.merge({
