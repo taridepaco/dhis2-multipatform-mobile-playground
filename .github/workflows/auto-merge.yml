@@ -1,8 +1,9 @@
 name: Auto Merge PR
 
 on:
-  check_run:
+  check_suite:
     types: [completed]
+  workflow_dispatch:
 
 permissions:
   pull-requests: write
@@ -27,6 +28,8 @@ jobs:
               owner, repo, state: 'open', base: defaultBranch,
             });
 
+            const PASSING = new Set(['success', 'skipped', 'neutral']);
+
             for (const pr of prs) {
               if (pr.draft) continue;
 
@@ -36,12 +39,12 @@ jobs:
 
               const runs = checks.check_runs;
               if (runs.length === 0) continue;
-              if (runs.some(r => r.status !== 'completed' || r.conclusion !== 'success')) continue;
+              if (runs.some(r => r.status !== 'completed' || !PASSING.has(r.conclusion))) continue;
 
               const { data: fullPr } = await github.rest.pulls.get({
                 owner, repo, pull_number: pr.number,
               });
-              if (!fullPr.mergeable) continue;
+              if (fullPr.mergeable === false) continue;
 
               try {
                 await github.rest.pulls.merge({
