@@ -32,6 +32,7 @@ For more information about architecture, design patterns and code conventions go
     - A short summary of what changed and why
     - Claude Skills used to implement the solution (e.g., "Used `add-dsl-command` skill to add a new command for listing events.")
     - Confirmation that `./gradlew :composeApp:jvmTest` passed
+- Labels: apply the **same labels** that exist on the triggering issue to the created pull request.
 
 ## What to Do When the Issue Is Ambiguous
 
