@@ -88,3 +88,15 @@ di                 Koin modules
 ### Layer boundaries
 
 UI → ViewModel → (UseCase) → Repository → DataSource. Don't skip layers (e.g. a Composable calling a DataSource directly). Repositories are the single source of truth for their data type.
+
+## Living documentation
+
+This project treats its agent-facing documentation as a living artifact. After completing a non-trivial task, take a moment to ask:
+
+1. **Was a decision made?** A decision is anything with future implications — a chosen approach, a constraint accepted, a library picked, a pattern ruled in or out. If yes, propose a new entry for `DECISIONS.md` (or run `/log-decision`). Bug fixes, refactors, and routine implementations are usually *not* decisions.
+2. **Did you discover a convention or gotcha future agents would need to know?** If yes, propose an edit to this `CLAUDE.md` rather than leaving the knowledge in conversation history. Add it to the most relevant existing section; only add new sections when no existing one fits.
+3. **Did you repeat a multi-step workflow that might come up again?** If you find yourself doing the same kind of task two or three times (e.g. "add a new repository: four files + factory + Koin"), propose extracting it as a project skill in `.claude/skills/`. Keep skill scope narrow and the description specific so it triggers reliably.
+
+Propose these updates — do not make them silently as a side effect of another task. The user should be able to review the proposed change separately from the main work.
+
+The canonical record of decisions is `DECISIONS.md`. Agent conversation history is not durable; do not rely on it for institutional knowledge.
