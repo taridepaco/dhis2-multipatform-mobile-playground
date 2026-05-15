@@ -1,6 +1,8 @@
 name: Auto Merge PR
 
 on:
+  check_run:
+    types: [completed]
   check_suite:
     types: [completed]
   pull_request_review:
@@ -21,7 +23,8 @@ jobs:
       - name: Make auto-merge script executable
         run: chmod +x scripts/auto-merge.sh
 
-      - name: Merge PRs with all checks passing
+      - name: Merge PR with all checks passing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_suite.pull_requests[0].number || github.event.check_run.pull_requests[0].number || '' }}
         run: ./scripts/auto-merge.sh
