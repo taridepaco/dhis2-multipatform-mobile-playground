@@ -17,7 +17,13 @@ The routine is triggered by a GitHub webhook that carries the **triggering issue
 3. If a linked PR already exists, stop — no further action needed.
 4. Implement the solution for the triggering issue following the rules below.
 5. Commit the changes and open a pull request.
-6. Stop.
+6. After the PR is created, spawn a **subagent** to review it. The subagent must be isolated — do
+   not share the current conversation context with it. Pass to the subagent:
+   - The PR number that was just created.
+   - The full contents of `.claude/skills/review-pr/SKILL.md` as its operating instructions.
+   The subagent should follow those instructions to read the PR, evaluate it, and post a GitHub
+   PR review. It must not perform any other action.
+7. Stop.
 
 ## Architecture Rules
 
@@ -32,7 +38,6 @@ For more information about architecture, design patterns and code conventions go
     - A short summary of what changed and why
     - Claude Skills used to implement the solution (e.g., "Used `add-dsl-command` skill to add a new command for listing events.")
     - Confirmation that `./gradlew :composeApp:jvmTest` passed
-- Labels: apply the **same labels** that exist on the triggering issue to the created pull request.
 
 ## What to Do When the Issue Is Ambiguous
 
