@@ -17,7 +17,13 @@ The routine is triggered by a GitHub webhook that carries the **triggering issue
 3. If a linked PR already exists, stop — no further action needed.
 4. Implement the solution for the triggering issue following the rules below.
 5. Commit the changes and open a pull request.
-6. Stop.
+6. After the PR is created, spawn a **subagent** to review it. The subagent must be isolated — do
+   not share the current conversation context with it. Pass to the subagent:
+   - The PR number that was just created.
+   - The full contents of `.claude/skills/review-pr/SKILL.md` as its operating instructions.
+   The subagent should follow those instructions to read the PR, evaluate it, and post a GitHub
+   PR review. It must not perform any other action.
+7. Stop.
 
 ## Architecture Rules
 
