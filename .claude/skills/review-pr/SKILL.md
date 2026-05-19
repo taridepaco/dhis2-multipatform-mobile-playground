@@ -1,12 +1,13 @@
 ---
 name: review-pr
-description: Review a pull request in taridepaco/dhis2-multiplatform-mobile-playground. Use when you need to run a code review on a specific PR, check its quality against the project's architecture and conventions, and post the result as a GitHub PR review. Covers correctness, MVVM architecture compliance, KMP conventions, state management, tests, DHIS2 UI components, security, and code quality. Examples of triggers: "review PR #42", "post a review on the open pull request", "check PR #7 for issues".
+description: Review a pull request in taridepaco/dhis2-multiplatform-mobile-playground, apply fixes directly to the PR branch, and post a summary comment. Use when you need to automatically fix issues in a PR (correctness, architecture compliance, KMP conventions, state management, tests, DHIS2 UI, security, code quality) and summarize what was changed. Examples of triggers: "review and fix PR #42", "apply fixes to the open pull request", "auto-fix PR #7".
 ---
 
-# Review a Pull Request
+# Review and Fix a Pull Request
 
-This skill reviews a pull request in `taridepaco/dhis2-multiplatform-mobile-playground` and posts
-the result as a GitHub PR review.
+This skill reviews a pull request in `taridepaco/dhis2-multiplatform-mobile-playground`, applies
+fixes directly to the PR branch by committing and pushing, and posts a plain comment summarising
+what was changed.
 
 ## Repository
 
@@ -15,16 +16,20 @@ the result as a GitHub PR review.
 ## Steps
 
 1. Read the pull request using the PR number provided. Fetch its metadata (title, body, state,
-   changed files) via `mcp__github__pull_request_read`.
-2. Check whether a review has already been posted by this routine (look for an existing review or
-   review comment authored by the bot on this PR).
-3. If a review already exists from this routine, stop — no further action needed.
-4. If the PR is in **draft** state, skip it silently — no review needed until the author marks it
+   base branch, head branch, changed files) via `mcp__github__pull_request_read`.
+2. Check whether this skill has already run on this PR (look for a bot comment that starts with
+   `## Fix Summary`). If one exists, stop — no further action needed.
+3. If the PR is in **draft** state, skip it silently — no action needed until the author marks it
    ready for review.
-5. Read the changed files. Use `mcp__github__get_file_contents` or `mcp__github__pull_request_read`
-   (method: `list_files`) to inspect the diff.
-6. Evaluate the changes against the Review Scope below.
-7. Post the result as a **GitHub pull request review** following the Output Format below.
+4. Check out the PR's head branch locally and read the changed files in full.
+5. Evaluate the changes against the Review Scope below. Identify every issue that can be fixed
+   safely without guessing at missing requirements.
+6. Apply the fixes directly in the local working copy. Commit each logical fix as a separate
+   commit on the PR's head branch with a clear message. Push the commits to the remote branch.
+7. Post a **plain pull request comment** (not a PR review) summarising the changes, using the
+   Output Format below.
+8. If no fixable issues are found, post a comment confirming the PR looks good and no changes
+   were needed.
 
 ## Review Scope
 
@@ -43,31 +48,29 @@ the result as a GitHub PR review.
   logged or exposed to the UI.
 - **Code quality** — no unnecessary comments, no over-engineering, English-only artifacts.
 
-## Review Output Format
+## Output Format
 
-Post the review as a **GitHub pull request review** (not a plain comment) so it appears in the
-PR's review timeline. Use the following structure:
+Post a plain comment on the PR with the following structure:
 
 ```
-## Code Review
+## Fix Summary
 
-### Summary
-<1-3 sentences on overall quality and the main findings>
+### Changes applied
+<!-- List each fix as a bullet; omit section if nothing was changed -->
+- `path/to/file.kt` — what was fixed and why
 
-### Issues
-<!-- List only real problems; omit this section if there are none -->
-- **[Severity: Critical/Major/Minor]** `path/to/file.kt:line` — description
+### No action needed
+<!-- List items inspected and found correct; omit section if everything was fixed -->
+- `path/to/file.kt` — reason it was left unchanged
 
-### Suggestions
-<!-- Optional improvements that are not blockers -->
-- `path/to/file.kt:line` — description
-
-### Verdict
-<!-- One of: APPROVE / REQUEST_CHANGES / COMMENT -->
-<verdict and one-line rationale>
+### Notes
+<!-- Any caveats, ambiguous items left for human review, or follow-up suggestions -->
 ```
 
-Severity guide:
-- **Critical** — correctness bug, security issue, or broken build.
-- **Major** — architectural violation or missing required tests.
-- **Minor** — style or naming deviation.
+If no issues were found at all, post:
+
+```
+## Fix Summary
+
+No fixable issues found. The PR looks good as-is.
+```
