@@ -8,11 +8,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.dhis2.multiplatformmobileplayground.dsl.executor.DslExecutor
+import org.dhis2.multiplatformmobileplayground.dsl.llm.InputResolver
+import org.dhis2.multiplatformmobileplayground.dsl.llm.InterpretResult
+import org.dhis2.multiplatformmobileplayground.dsl.llm.InterpreterState
 import org.dhis2.multiplatformmobileplayground.dsl.model.DslResult
 import org.dhis2.multiplatformmobileplayground.dsl.model.ExecutionEntry
-import org.dhis2.multiplatformmobileplayground.dsl.parser.DslParser
 
 class NotebookViewModel(
+    private val resolver: InputResolver,
     private val executor: DslExecutor
 ) : ViewModel() {
 
@@ -22,22 +25,56 @@ class NotebookViewModel(
     private val _isExecuting = MutableStateFlow(false)
     val isExecuting: StateFlow<Boolean> = _isExecuting.asStateFlow()
 
+    private val _interpreterState = MutableStateFlow(InterpreterState.Loading)
+    val interpreterState: StateFlow<InterpreterState> = _interpreterState.asStateFlow()
+
+    val isLlmPlatform: Boolean = resolver.isLlmPlatform
+
+    private val pendingInputs = ArrayDeque<String>()
+
+    init {
+        viewModelScope.launch {
+            val state = resolver.warmUp()
+            _interpreterState.value = state
+            while (pendingInputs.isNotEmpty()) {
+                executeInput(pendingInputs.removeFirst())
+            }
+        }
+    }
+
     fun submit(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
-
-        viewModelScope.launch {
-            _isExecuting.value = true
-            val result = try {
-                val invocation = DslParser.parse(trimmed)
-                executor.execute(invocation)
-            } catch (e: IllegalArgumentException) {
-                DslResult.Error("Parse error: ${e.message}")
-            } catch (e: Exception) {
-                DslResult.Error("Unexpected error: ${e.message}")
-            }
-            _history.update { it + ExecutionEntry(input = trimmed, result = result) }
-            _isExecuting.value = false
+        if (_interpreterState.value == InterpreterState.Loading) {
+            pendingInputs.addLast(trimmed)
+            return
         }
+        viewModelScope.launch { executeInput(trimmed) }
+    }
+
+    private suspend fun executeInput(text: String) {
+        _isExecuting.value = true
+        val entry = when (val resolution = resolver.resolve(text)) {
+            is InterpretResult.Resolved -> {
+                val result = try {
+                    executor.execute(resolution.invocation)
+                } catch (e: Exception) {
+                    DslResult.Error("Unexpected error: ${e.message}")
+                }
+                ExecutionEntry(input = text, result = result, inferredCall = resolution.inferredCall)
+            }
+            is InterpretResult.Clarification -> ExecutionEntry(
+                input = text,
+                result = DslResult.Error(resolution.message),
+                inferredCall = null
+            )
+            is InterpretResult.Failure -> ExecutionEntry(
+                input = text,
+                result = DslResult.Error(resolution.message),
+                inferredCall = null
+            )
+        }
+        _history.update { it + entry }
+        _isExecuting.value = false
     }
 }
