@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.dhis2.multiplatformmobileplayground.dsl.executor.DslExecutor
 import org.dhis2.multiplatformmobileplayground.dsl.llm.InputResolver
 import org.dhis2.multiplatformmobileplayground.dsl.llm.InterpretResult
@@ -31,6 +33,7 @@ class NotebookViewModel(
     val isLlmPlatform: Boolean = resolver.isLlmPlatform
 
     private val pendingInputs = ArrayDeque<String>()
+    private val executionMutex = Mutex()
 
     init {
         viewModelScope.launch {
@@ -52,7 +55,7 @@ class NotebookViewModel(
         viewModelScope.launch { executeInput(trimmed) }
     }
 
-    private suspend fun executeInput(text: String) {
+    private suspend fun executeInput(text: String) = executionMutex.withLock {
         _isExecuting.value = true
         val entry = when (val resolution = resolver.resolve(text)) {
             is InterpretResult.Resolved -> {

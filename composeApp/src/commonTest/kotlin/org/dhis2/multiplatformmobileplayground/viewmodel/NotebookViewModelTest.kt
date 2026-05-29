@@ -221,6 +221,27 @@ class NotebookViewModelTest {
     }
 
     @Test
+    fun shouldSerializeExecutionsAndNotBeExecutingAfterConcurrentSubmits() = runTest {
+        fakeResolver.warmUpState = InterpreterState.Ready
+        fakeResolver.resolveResult = InterpretResult.Resolved(
+            invocation = Invocation("help", emptyList()),
+            inferredCall = null
+        )
+        fakeExecutor.result = DslResult.Success(json = "{}", display = "ok")
+        viewModel = NotebookViewModel(fakeResolver, fakeExecutor)
+        advanceUntilIdle()
+
+        // Simulate concurrent submits after warm-up
+        viewModel.submit("a")
+        viewModel.submit("b")
+        viewModel.submit("c")
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.history.value.size)
+        assertFalse(viewModel.isExecuting.value)
+    }
+
+    @Test
     fun shouldAppendErrorEntryWhenExecutorThrows() = runTest {
         fakeResolver.warmUpState = InterpreterState.Ready
         fakeResolver.resolveResult = InterpretResult.Resolved(

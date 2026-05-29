@@ -33,8 +33,8 @@ class Gemma4NaturalLanguageInterpreter(
         if (!isAvailable) return
         withContext(Dispatchers.IO) {
             mutex.withLock {
-                model = buildModel()
                 runCatching {
+                    model = buildModel()
                     withTimeout(COLD_TIMEOUT_MS) {
                         model?.generateContent(Content.fromText("ping"))
                     }
