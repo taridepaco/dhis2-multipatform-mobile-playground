@@ -1,7 +1,7 @@
 [versions]
 agp = "8.11.2"
 android-compileSdk = "36"
-android-minSdk = "24"
+android-minSdk = "26"
 android-targetSdk = "36"
 androidx-activity = "1.11.0"
 androidx-appcompat = "1.7.1"
@@ -17,7 +17,7 @@ kotlinx-coroutines = "1.10.2"
 dhis2MobileUi = "0.6.0"
 dhis2AndroidSdk = "1.13.0"
 koin = "4.2.0"
-mlkitGenaiPrompt = "1.0.0-alpha01"
+mlkitGenaiPrompt = "1.0.0-beta2"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
