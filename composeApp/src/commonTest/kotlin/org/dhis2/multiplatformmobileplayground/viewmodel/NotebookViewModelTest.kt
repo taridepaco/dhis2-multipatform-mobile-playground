@@ -270,7 +270,7 @@ private class FakeInputResolver(
     ),
     override val isLlmPlatform: Boolean = false
 ) : InputResolver {
-    override suspend fun warmUp(): InterpreterState = warmUpState
+    override suspend fun warmUp(onProgress: (InterpreterState) -> Unit): InterpreterState = warmUpState
     override suspend fun resolve(text: String): InterpretResult = resolveResult
 }
 

@@ -10,9 +10,9 @@ class LlmInputResolver(
 
     private var useFallback: Boolean = withDslFallback
 
-    override suspend fun warmUp(): InterpreterState {
+    override suspend fun warmUp(onProgress: (InterpreterState) -> Unit): InterpreterState {
         if (withDslFallback) return InterpreterState.DslFallback
-        interpreter.warmUp()
+        interpreter.warmUp(onProgress)
         return if (interpreter.isAvailable) {
             InterpreterState.Ready
         } else {

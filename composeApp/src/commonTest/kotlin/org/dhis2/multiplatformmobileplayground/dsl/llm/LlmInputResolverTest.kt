@@ -104,7 +104,7 @@ private class FakeNaturalLanguageInterpreter(
     private val responses: ArrayDeque<InterpretResult> = ArrayDeque()
 ) : NaturalLanguageInterpreter {
     override val isAvailable: Boolean = availableOnConstruction
-    override suspend fun warmUp() = Unit
+    override suspend fun warmUp(onProgress: (InterpreterState) -> Unit) = Unit
     override suspend fun interpret(text: String): InterpretResult =
         responses.removeFirstOrNull() ?: InterpretResult.Failure("No more fake responses")
 }

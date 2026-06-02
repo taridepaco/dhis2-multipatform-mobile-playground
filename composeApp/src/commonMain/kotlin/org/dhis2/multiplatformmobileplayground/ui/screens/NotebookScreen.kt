@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -103,18 +106,41 @@ fun NotebookScreen(
             }
         }
 
+        if (isExecuting) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Thinking…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val isLoading = interpreterState == InterpreterState.Loading
-            val placeholder = if (isLoading) "Loading language model…" else
-                if (viewModel.isLlmPlatform && interpreterState == InterpreterState.Ready)
+            val downloadState = interpreterState as? InterpreterState.DownloadingModel
+            val isLoading = interpreterState == InterpreterState.Loading || downloadState != null
+            val placeholder = when {
+                downloadState != null -> {
+                    val pct = downloadState.progress?.let { " ${(it * 100).toInt()}%" } ?: ""
+                    "Downloading model…$pct"
+                }
+                interpreterState == InterpreterState.Loading -> "Loading language model…"
+                viewModel.isLlmPlatform && interpreterState == InterpreterState.Ready ->
                     "Ask in natural language or type a command…"
-                else
-                    "Type a command… (try 'help')"
+                else -> "Type a command… (try 'help')"
+            }
 
             OutlinedTextField(
                 value = inputText,

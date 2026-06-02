@@ -27,7 +27,7 @@ class NotebookViewModel(
     private val _isExecuting = MutableStateFlow(false)
     val isExecuting: StateFlow<Boolean> = _isExecuting.asStateFlow()
 
-    private val _interpreterState = MutableStateFlow(InterpreterState.Loading)
+    private val _interpreterState = MutableStateFlow<InterpreterState>(InterpreterState.Loading)
     val interpreterState: StateFlow<InterpreterState> = _interpreterState.asStateFlow()
 
     val isLlmPlatform: Boolean = resolver.isLlmPlatform
@@ -37,7 +37,7 @@ class NotebookViewModel(
 
     init {
         viewModelScope.launch {
-            val state = resolver.warmUp()
+            val state = resolver.warmUp { progress -> _interpreterState.value = progress }
             _interpreterState.value = state
             while (pendingInputs.isNotEmpty()) {
                 executeInput(pendingInputs.removeFirst())
@@ -48,7 +48,7 @@ class NotebookViewModel(
     fun submit(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
-        if (_interpreterState.value == InterpreterState.Loading) {
+        if (isWarmingUp(_interpreterState.value)) {
             pendingInputs.addLast(trimmed)
             return
         }
@@ -57,27 +57,43 @@ class NotebookViewModel(
 
     private suspend fun executeInput(text: String) = executionMutex.withLock {
         _isExecuting.value = true
-        val entry = when (val resolution = resolver.resolve(text)) {
-            is InterpretResult.Resolved -> {
-                val result = try {
-                    executor.execute(resolution.invocation)
-                } catch (e: Exception) {
-                    DslResult.Error("Unexpected error: ${e.message}")
+        try {
+            val entry = when (val resolution = resolver.resolve(text)) {
+                is InterpretResult.Resolved -> {
+                    val result = try {
+                        executor.execute(resolution.invocation)
+                    } catch (e: Exception) {
+                        DslResult.Error("Unexpected error: ${e.message}")
+                    }
+                    ExecutionEntry(input = text, result = result, inferredCall = resolution.inferredCall)
                 }
-                ExecutionEntry(input = text, result = result, inferredCall = resolution.inferredCall)
+                is InterpretResult.Clarification -> ExecutionEntry(
+                    input = text,
+                    result = DslResult.Error(resolution.message),
+                    inferredCall = null
+                )
+                is InterpretResult.Failure -> ExecutionEntry(
+                    input = text,
+                    result = DslResult.Error(resolution.message),
+                    inferredCall = null
+                )
             }
-            is InterpretResult.Clarification -> ExecutionEntry(
-                input = text,
-                result = DslResult.Error(resolution.message),
-                inferredCall = null
-            )
-            is InterpretResult.Failure -> ExecutionEntry(
-                input = text,
-                result = DslResult.Error(resolution.message),
-                inferredCall = null
-            )
+            _history.update { it + entry }
+        } catch (t: kotlinx.coroutines.CancellationException) {
+            throw t
+        } catch (t: Throwable) {
+            _history.update {
+                it + ExecutionEntry(
+                    input = text,
+                    result = DslResult.Error("Unexpected error: ${t.message}"),
+                    inferredCall = null
+                )
+            }
+        } finally {
+            _isExecuting.value = false
         }
-        _history.update { it + entry }
-        _isExecuting.value = false
     }
+
+    private fun isWarmingUp(state: InterpreterState): Boolean =
+        state == InterpreterState.Loading || state is InterpreterState.DownloadingModel
 }

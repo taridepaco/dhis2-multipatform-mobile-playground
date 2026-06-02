@@ -13,5 +13,8 @@ actual object NaturalLanguageInterpreterFactory {
     }
 
     actual fun create(registry: CommandRegistry): NaturalLanguageInterpreter =
-        Gemma4NaturalLanguageInterpreter(registry = registry)
+        Gemma4NaturalLanguageInterpreter(
+            context = applicationContext,
+            registry = registry
+        )
 }

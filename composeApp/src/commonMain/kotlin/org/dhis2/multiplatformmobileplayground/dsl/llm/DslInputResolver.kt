@@ -5,7 +5,8 @@ import org.dhis2.multiplatformmobileplayground.dsl.parser.DslParser
 class DslInputResolver : InputResolver {
     override val isLlmPlatform: Boolean = false
 
-    override suspend fun warmUp(): InterpreterState = InterpreterState.DslFallback
+    override suspend fun warmUp(onProgress: (InterpreterState) -> Unit): InterpreterState =
+        InterpreterState.DslFallback
 
     override suspend fun resolve(text: String): InterpretResult = try {
         val invocation = DslParser.parse(text)

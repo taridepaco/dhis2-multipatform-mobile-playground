@@ -58,6 +58,16 @@ There is no navigation library. `App.kt` branches on `LoginViewModel.uiState` (`
 - **Android data/business logic:** use the **DHIS2 Android SDK** (`org.hisp.dhis:android-core`). Docs: <https://github.com/dhis2/dhis2-android-sdk/tree/master/docs/content/developer>
 - **iOS / Desktop:** stub / no-op `actual` implementations are acceptable (the SDK is Android-only today).
 
+## On-device LLM (Notebook natural-language input)
+
+The Notebook lets users type natural language; an on-device LLM maps it to a DSL command. This is **Android-only** and built on the **MediaPipe LLM Inference API** (Google AI Edge, `com.google.mediapipe:tasks-genai`) — the same engine as the AI Edge Gallery app. We deliberately do **not** use ML Kit GenAI / AICore (it's gated to an allowlist of devices and won't run on emulators). See `DECISIONS.md` 0010.
+
+- **Interpreter chain:** `NotebookViewModel` → `InputResolver` (`LlmInputResolver` on Android, `DslInputResolver` elsewhere) → `NaturalLanguageInterpreter`. The Android implementation is `dsl/llm/Gemma4NaturalLanguageInterpreter`; iOS/JVM use no-op `UnavailableInterpreter` stubs wired via `NaturalLanguageInterpreterFactory` (the same `expect/actual` factory pattern as repositories).
+- **No function-calling:** the Prompt API is text-in/text-out. Command selection works by embedding the command catalog (`CommandRegistry.toJsonSchema()`) in the prompt and asking the model to reply in a strict `CALL <command>` / `CLARIFY: …` format, parsed and routed through `ToolCallMapper`. Keep that response contract in sync between `buildPrompt` and `parseResponse`.
+- **Model:** Gemma 4 E2B (`gemma-4-E2B-it.litertlm`, ~2.5 GB). Not bundled — downloaded on first `warmUp()` into app-private `filesDir` by `ModelDownloader`, then reused. Existence is checked before downloading.
+- **Hugging Face token:** the model is gated. The download needs a token exposed as `BuildConfig.HF_TOKEN`, populated from `HF_TOKEN` in `local.properties` (gitignored) or the `HF_TOKEN` env var. Without it, download fails and the app degrades to the DSL fallback. Never commit a token.
+- **Warm-up & state:** `warmUp(onProgress)` reports progress via `InterpreterState` (`Loading` → `DownloadingModel(progress)` → `Ready` / `DslFallback`). Download, storage, and out-of-memory errors are caught and degrade to `DslFallback` rather than crashing. If you add a warm-up phase, surface it through `InterpreterState` so the Notebook input placeholder reflects it.
+
 ## Conventions
 
 ### Package layout (under `org.dhis2.multiplatformmobileplayground`)

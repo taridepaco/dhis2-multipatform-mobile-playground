@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -34,7 +35,7 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.dhis2.android.sdk)
             implementation(libs.koin.android)
-            implementation(libs.mlkit.genai.prompt)
+            implementation(libs.mediapipe.tasks.genai)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -72,6 +73,19 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+
+        // Hugging Face access token used to download the gated on-device LLM model.
+        // Read from local.properties (HF_TOKEN, gitignored) or the HF_TOKEN env var; empty if unset.
+        val hfToken = run {
+            val props = Properties()
+            rootProject.file("local.properties").takeIf { it.exists() }
+                ?.inputStream()?.use { props.load(it) }
+            props.getProperty("HF_TOKEN") ?: System.getenv("HF_TOKEN") ?: ""
+        }
+        buildConfigField("String", "HF_TOKEN", "\"$hfToken\"")
+    }
+    buildFeatures {
+        buildConfig = true
     }
     packaging {
         resources {
