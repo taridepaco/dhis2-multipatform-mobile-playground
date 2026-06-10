@@ -249,7 +249,7 @@ class Gemma4NaturalLanguageInterpreter(
         val sanitized = sanitize(output)
         Log.d(TAG, "Model output (raw ${output.length} chars, sanitized ${sanitized.length}): '$sanitized'")
         if (sanitized.isBlank()) return InterpretResult.Failure("Empty response from model")
-        return parseResponse(sanitized)
+        return parseResponse(sanitized, text)
     }
 
     /** Trims the reply at the first turn/sequence terminator and strips any residual special tokens. */
@@ -273,7 +273,8 @@ class Gemma4NaturalLanguageInterpreter(
         appendLine("1. To invoke a command, a line `CALL <command_name>` followed by one")
         appendLine("   `<param_name>: <value>` line per argument (omit optional params you don't need).")
         appendLine("2. To ask for clarification, a single line `CLARIFY: <your message>`.")
-        append("Use only command and parameter names that appear in the catalog above.")
+        appendLine("Use only command and parameter names that appear in the catalog above.")
+        append("Copy any IDs, UIDs or codes from the request EXACTLY — never change, shorten, or omit characters.")
     }
 
     /** Compact, low-token command listing: `name(req1, req2, [opt]): description`. */
@@ -284,7 +285,7 @@ class Gemma4NaturalLanguageInterpreter(
         "- ${spec.name}($params): ${spec.description}"
     }
 
-    private fun parseResponse(raw: String): InterpretResult {
+    private fun parseResponse(raw: String, userText: String): InterpretResult {
         val lines = raw.lines()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("```") }
@@ -296,28 +297,7 @@ class Gemma4NaturalLanguageInterpreter(
 
         if (callIdx >= 0 && (clarifyIdx < 0 || callIdx <= clarifyIdx)) {
             val afterCall = lines[callIdx].substring(CALL_PREFIX_LENGTH).trimStart(':', ' ').trim()
-            // Command name is the first token. The model often mimics the catalog's function syntax,
-            // e.g. `CALL d2.programs.list(limit: 10)`, so stop at whitespace, ':' or '(' (which would
-            // otherwise leave parentheses on the name and fail the lookup).
-            val command = afterCall.takeWhile { !it.isWhitespace() && it != ':' && it != '(' }
-            if (command.isEmpty()) {
-                return InterpretResult.Failure("Model did not specify a command")
-            }
-            // Args may appear inline (inside parens or after a colon) and/or one per following line.
-            val inline = afterCall.removePrefix(command).trim()
-                .let { if (it.startsWith("(") && it.endsWith(")")) it.substring(1, it.length - 1) else it }
-                .trimStart(':', ' ')
-            val argFragments = inline.split(',', ';', '\n') +
-                lines.drop(callIdx + 1)
-                    .takeWhile { !it.startsWith("CALL", true) && !it.startsWith("CLARIFY", true) }
-            val args = argFragments.mapNotNull { fragment ->
-                val frag = fragment.trim().trim('(', ')').trim()
-                val separator = frag.indexOfFirst { it == ':' || it == '=' }
-                if (separator <= 0) return@mapNotNull null
-                frag.substring(0, separator).trim() to
-                    frag.substring(separator + 1).trim().trim(',', ')', '"', '\'', ' ')
-            }.toMap()
-            return toolCallMapper.map(command, args)
+            return invocationFrom(afterCall, lines.drop(callIdx + 1), userText)
         }
 
         if (clarifyIdx >= 0) {
@@ -325,9 +305,82 @@ class Gemma4NaturalLanguageInterpreter(
             return InterpretResult.Clarification(message.ifBlank { raw.trim() })
         }
 
+        // No CALL/CLARIFY directive. The model sometimes writes a bare command (e.g. `help()`),
+        // dropping the CALL prefix. Accept it only when the first token is a registered command —
+        // genuine free-form text won't match, so it still surfaces as a clarification.
+        val firstLine = lines.firstOrNull()
+        if (firstLine != null) {
+            val candidate = extractCommandName(firstLine)
+            if (candidate.isNotEmpty() && registry.find(candidate) != null) {
+                return invocationFrom(firstLine, lines.drop(1), userText)
+            }
+        }
+
         // The model replied with free-form text instead of following the format — surface it.
         return InterpretResult.Clarification(raw.trim())
     }
+
+    /**
+     * Extracts a command name from the start of a line: skips leading non-identifier junk (the model
+     * sometimes wraps names in `<...>`, backticks or `*`) and keeps only identifier characters, so
+     * stray trailing markup like `d2.users.me>` or `help()` resolves to the bare command name.
+     */
+    private fun extractCommandName(line: String): String =
+        line.dropWhile { !it.isLetterOrDigit() }
+            .takeWhile { it.isLetterOrDigit() || it == '.' || it == '_' || it == '-' }
+
+    /**
+     * Parses a command invocation from a `<command> [args]` line plus any following argument lines,
+     * and maps it through [toolCallMapper]. The model often mimics the catalog's function syntax
+     * (`d2.programs.list(limit: 10)`), so args are read from inside parens, after a colon, and/or one
+     * per following line.
+     */
+    private fun invocationFrom(
+        commandLine: String,
+        followingLines: List<String>,
+        userText: String
+    ): InterpretResult {
+        val command = extractCommandName(commandLine)
+        if (command.isEmpty()) {
+            return InterpretResult.Failure("Model did not specify a command")
+        }
+        val inline = commandLine.substringAfter(command, "").trim()
+            .let { if (it.startsWith("(") && it.endsWith(")")) it.substring(1, it.length - 1) else it }
+            .trimStart(':', ' ')
+        val argFragments = inline.split(',', ';', '\n') +
+            followingLines.takeWhile { !it.startsWith("CALL", true) && !it.startsWith("CLARIFY", true) }
+        val args = argFragments.mapNotNull { fragment ->
+            val frag = fragment.trim().trim('(', ')', '<', '>', '`').trim()
+            val separator = frag.indexOfFirst { it == ':' || it == '=' }
+            if (separator <= 0) return@mapNotNull null
+            frag.substring(0, separator).trim() to
+                frag.substring(separator + 1).trim().trim(',', ')', '"', '\'', '<', '>', '`', ' ')
+        }.toMap()
+        return toolCallMapper.map(command, correctUids(args, userText))
+    }
+
+    /**
+     * LLMs don't reliably copy random identifiers, so a UID can come back mangled (e.g. a dropped
+     * leading char). When an argument looks like a UID but doesn't match a valid DHIS2 UID, and the
+     * user's original text contains a valid UID that overlaps it, prefer the verbatim UID the user
+     * typed. Short/non-UID values (limits, codes) are left untouched.
+     */
+    private fun correctUids(args: Map<String, String>, userText: String): Map<String, String> {
+        val inputUids = DHIS2_UID.findAll(userText).map { it.value }.toList()
+        if (inputUids.isEmpty()) return args
+        return args.mapValues { (_, value) ->
+            if (!looksLikeUid(value) || DHIS2_UID.matches(value)) {
+                value
+            } else {
+                inputUids.firstOrNull { uid ->
+                    uid.contains(value, ignoreCase = true) || value.contains(uid, ignoreCase = true)
+                }?.also { Log.d(TAG, "Corrected mangled UID '$value' -> '$it' from user input") } ?: value
+            }
+        }
+    }
+
+    private fun looksLikeUid(value: String): Boolean =
+        value.length in 8..13 && value.all { it.isLetterOrDigit() }
 
     companion object {
         const val MODEL_FILE_NAME = "gemma-4-E2B-it.litertlm"
@@ -352,6 +405,8 @@ class Gemma4NaturalLanguageInterpreter(
         // Residual special tokens to strip from the kept text.
         private val SPECIAL_TOKEN =
             Regex("<(?:start_of_turn|end_of_turn|eos|bos|pad|turn|sep|unk)>")
+        // DHIS2 UID: exactly 11 chars, a leading letter then letters/digits.
+        private val DHIS2_UID = Regex("\\b[A-Za-z][A-Za-z0-9]{10}\\b")
         // Larger buffer than the default 8 KB to keep the multi-GB model import/export reasonably fast.
         private const val COPY_BUFFER_BYTES = 1 shl 20 // 1 MB
         // Free space required beyond the model size before exporting a seed copy.
