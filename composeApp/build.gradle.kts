@@ -35,7 +35,7 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.dhis2.android.sdk)
             implementation(libs.koin.android)
-            implementation(libs.mediapipe.tasks.genai)
+            implementation(libs.litertlm.android)
         }
         commonMain.dependencies {
             implementation(compose.runtime)

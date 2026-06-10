@@ -4,33 +4,39 @@ import android.content.Context
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import org.dhis2.multiplatformmobileplayground.BuildConfig
-import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
-import kotlinx.coroutines.CompletableDeferred
+import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Contents
+import com.google.ai.edge.litertlm.ConversationConfig
+import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.SamplerConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.dhis2.multiplatformmobileplayground.BuildConfig
 import org.dhis2.multiplatformmobileplayground.dsl.catalog.CommandRegistry
 import java.io.File
-import java.util.concurrent.Executor
 
 /**
- * On-device natural-language interpreter backed by the MediaPipe LLM Inference API (Google AI Edge),
- * the same engine used by the AI Edge Gallery app. It loads a Gemma model file and runs entirely
- * on-device, so it works on any sufficiently capable device (no AICore required).
+ * On-device natural-language interpreter backed by the LiteRT-LM runtime (Google AI Edge), the same
+ * runtime the AI Edge Gallery uses to run `.litertlm` models. It loads a Gemma model file and runs
+ * entirely on-device, preferring GPU acceleration where available. (We previously used MediaPipe
+ * `tasks-genai`, but its GPU accelerator failed to load for this model on real hardware, pinning us
+ * to slow CPU inference; LiteRT-LM is the runtime the `.litertlm` format is built for.)
  *
  * The model (~2.5 GB) is not bundled with the app. On first [warmUp] it is downloaded into app-private
  * storage; subsequent runs reuse the cached file. The model on Hugging Face is gated, so [authToken]
  * (a Hugging Face access token for an account that accepted the Gemma license) must be supplied for
  * the download to succeed — otherwise warm-up fails gracefully and the app falls back to the DSL.
  *
- * The API is text-in/text-out (no function-calling), so command selection is done by prompting the
- * model with the command catalog and asking it to reply in a small, strict format that we parse and
- * route through [ToolCallMapper].
+ * Inference is text-in/text-out (no function-calling), so command selection is done by giving the
+ * model the command catalog as a system instruction and asking it to reply in a small, strict format
+ * that we parse and route through [ToolCallMapper].
  */
 class Gemma4NaturalLanguageInterpreter(
     private val context: Context,
@@ -48,6 +54,7 @@ class Gemma4NaturalLanguageInterpreter(
 
     private val modelPath: String = modelFile.absolutePath
     private val seedPath: String? = seedFile?.absolutePath
+    private val cacheDir: String = context.cacheDir.absolutePath
     private val downloader = ModelDownloader()
 
     // True means "this platform can run the LLM"; the model is fetched/loaded lazily in warmUp().
@@ -59,7 +66,7 @@ class Gemma4NaturalLanguageInterpreter(
     private var steadyState = false
 
     private val mutex = Mutex()
-    private var engine: LlmInference? = null
+    private var engine: Engine? = null
 
     override val isAvailable: Boolean
         get() = available
@@ -146,50 +153,35 @@ class Gemma4NaturalLanguageInterpreter(
     }
 
     /**
-     * Loads the model into the inference engine. Prefers the GPU backend (much faster) when the
-     * device supports it, falling back to CPU otherwise. GPU support is detected up-front rather
-     * than via try/catch because MediaPipe's GPU backend hard-crashes (SIGSEGV) when OpenCL is
-     * missing — e.g. on emulators — instead of throwing a catchable exception. Returns false if no
-     * backend works.
+     * Initializes the LiteRT-LM engine. Prefers the GPU backend (much faster) on physical devices,
+     * falling back to CPU if GPU initialization fails. Emulators skip GPU entirely: they have no
+     * OpenCL driver and forcing GPU there crashes the process natively (uncatchable SIGSEGV) rather
+     * than throwing. Returns false if no backend initializes.
      */
     private fun loadModel(): Boolean {
-        if (engine != null) return true // already loaded; don't recreate the engine on re-warm-up
-        val backends = if (isGpuBackendSupported()) {
-            listOf(LlmInference.Backend.GPU, LlmInference.Backend.CPU)
+        if (engine != null) return true // already initialized; don't reload on re-warm-up
+        val backends = if (isProbablyEmulator()) {
+            Log.d(TAG, "Emulator detected; using CPU backend only")
+            listOf("CPU" to Backend.CPU())
         } else {
-            Log.d(TAG, "GPU backend not supported on this device; using CPU")
-            listOf(LlmInference.Backend.CPU)
+            listOf("GPU" to Backend.GPU(), "CPU" to Backend.CPU())
         }
-        for (backend in backends) {
+        for ((label, backend) in backends) {
             val loaded = runCatching {
-                Log.d(TAG, "Loading model with $backend backend…")
-                engine = LlmInference.createFromOptions(
-                    context,
-                    LlmInference.LlmInferenceOptions.builder()
-                        .setModelPath(modelPath)
-                        .setMaxTokens(MAX_TOKENS)
-                        .setMaxTopK(MAX_TOP_K)
-                        .setPreferredBackend(backend)
-                        .build()
+                Log.d(TAG, "Initializing LiteRT-LM engine ($label backend)…")
+                val newEngine = Engine(
+                    EngineConfig(modelPath = modelPath, backend = backend, cacheDir = cacheDir)
                 )
-            }.onFailure { Log.e(TAG, "Model load with $backend backend failed", it) }.isSuccess
+                newEngine.initialize()
+                engine = newEngine
+            }.onFailure { Log.e(TAG, "Engine init ($label backend) failed", it) }.isSuccess
             if (loaded) {
-                Log.d(TAG, "Model loaded with $backend backend")
+                Log.d(TAG, "Engine initialized with $label backend")
                 return true
             }
         }
         return false
     }
-
-    /**
-     * Whether to attempt the GPU backend. Emulators have no OpenCL and forcing GPU there crashes the
-     * process natively (uncatchable SIGSEGV), so we exclude them — that's the one reliably-detectable
-     * unsupported case. Physical devices attempt GPU; the manifest's <uses-native-library> entries
-     * let LiteRT dlopen the vendor OpenCL driver, and if a real device still lacks GPU support the
-     * loadModel() loop falls back to CPU. (Probing exact OpenCL driver paths proved too unreliable
-     * across OEMs — it false-negatived real devices and kept them on slow CPU.)
-     */
-    private fun isGpuBackendSupported(): Boolean = !isProbablyEmulator()
 
     private fun isProbablyEmulator(): Boolean =
         Build.FINGERPRINT.startsWith("generic") ||
@@ -207,15 +199,13 @@ class Gemma4NaturalLanguageInterpreter(
         }
         val timeout = if (steadyState) STEADY_TIMEOUT_MS else COLD_TIMEOUT_MS
         Log.d(TAG, "interpret() start. steadyState=$steadyState, timeout=${timeout}ms, text='$text'")
-        // We use the async (streaming) generation API so the await is cancellable: when withTimeout
-        // fires we cancel the underlying future to abort generation, instead of being stuck behind a
-        // blocking native call.
         return try {
+            // The streaming Flow is cancellable, so withTimeout actually aborts a slow generation.
             withTimeout(timeout) {
                 mutex.withLock { interpretInternal(engine, text) }
             }
         } catch (e: TimeoutCancellationException) {
-            Log.w(TAG, "interpret() timed out after ${timeout}ms (native generation may still be running)")
+            Log.w(TAG, "interpret() timed out after ${timeout}ms")
             InterpretResult.Failure("Interpretation timed out. Try a shorter request.")
         } catch (e: Throwable) {
             Log.e(TAG, "Interpretation failed", e)
@@ -223,51 +213,37 @@ class Gemma4NaturalLanguageInterpreter(
         }
     }
 
-    private suspend fun interpretInternal(engine: LlmInference, text: String): InterpretResult {
+    private suspend fun interpretInternal(engine: Engine, text: String): InterpretResult {
+        val systemInstruction = buildSystemInstruction()
         val output = withContext(Dispatchers.IO) {
-            val session = LlmInferenceSession.createFromOptions(
-                engine,
-                LlmInferenceSession.LlmInferenceSessionOptions.builder()
-                    .setTemperature(0.0f)
-                    .setTopK(1)
-                    .build()
-            )
-            val prompt = buildPrompt(text)
-            Log.d(TAG, "Submitting prompt (${prompt.length} chars) and generating response…")
-            Log.d(TAG, "Full prompt sent to model:\n$prompt")
-            session.addQueryChunk(prompt)
-
-            val startedAt = SystemClock.elapsedRealtime()
-            val result = CompletableDeferred<String>()
-            val builder = StringBuilder()
-            // Streams partial tokens: logging each one tells us whether the model is producing output
-            // slowly or is genuinely stuck (no tokens at all).
-            val future = session.generateResponseAsync { partial, done ->
-                if (!partial.isNullOrEmpty()) builder.append(partial)
-                Log.d(
-                    TAG,
-                    "partial token (+${partial?.length ?: 0} chars, total=${builder.length}, " +
-                        "${SystemClock.elapsedRealtime() - startedAt}ms), done=$done"
+            // A fresh conversation per request keeps inference stateless (no history bleed between
+            // notebook commands). The conversation applies the model's chat template and stop tokens.
+            val conversation = engine.createConversation(
+                ConversationConfig(
+                    systemInstruction = Contents.of(systemInstruction),
+                    samplerConfig = SamplerConfig(topK = 1, topP = 1.0, temperature = 0.0)
                 )
-                if (done) result.complete(builder.toString())
-            }
-            // Surface a generation failure (otherwise the listener might never report done).
-            future.addListener(
-                { runCatching { future.get() }.onFailure { result.completeExceptionally(it) } },
-                Executor { it.run() }
             )
             try {
-                result.await()
-            } finally {
-                // On timeout/cancellation, ask the engine to abort: cancelGenerateResponseAsync()
-                // releases the engine lock (future.cancel() does not), so the next request isn't
-                // rejected with "Previous invocation still processing".
-                if (!result.isCompleted) {
-                    Log.w(TAG, "Cancelling in-flight generation after ${SystemClock.elapsedRealtime() - startedAt}ms")
-                    runCatching { session.cancelGenerateResponseAsync() }
+                Log.d(TAG, "System instruction (${systemInstruction.length} chars). User request: '$text'")
+                val startedAt = SystemClock.elapsedRealtime()
+                val builder = StringBuilder()
+                conversation.sendMessageAsync(Contents.of(text)).collect { message ->
+                    // Each streamed Message carries a partial chunk; concatenate the text parts.
+                    val chunk = message.contents.contents
+                        .filterIsInstance<Content.Text>()
+                        .joinToString("") { it.text }
+                    if (chunk.isNotEmpty()) builder.append(chunk)
+                    Log.d(
+                        TAG,
+                        "partial (+${chunk.length} chars, total=${builder.length}, " +
+                            "${SystemClock.elapsedRealtime() - startedAt}ms)"
+                    )
                 }
-                runCatching { session.close() }
                 Log.d(TAG, "Generation finished in ${SystemClock.elapsedRealtime() - startedAt}ms")
+                builder.toString()
+            } finally {
+                runCatching { conversation.close() }
             }
         }
         val sanitized = sanitize(output)
@@ -286,26 +262,18 @@ class Gemma4NaturalLanguageInterpreter(
         return text.replace(SPECIAL_TOKEN, "").trim()
     }
 
-    private fun buildPrompt(text: String): String {
-        val instructions = buildString {
-            appendLine(SYSTEM_INSTRUCTION)
-            appendLine()
-            appendLine("Available commands:")
-            appendLine(buildCatalog())
-            appendLine()
-            appendLine("Response format — reply with ONLY one of the following, and nothing else:")
-            appendLine("1. To invoke a command, a line `CALL <command_name>` followed by one")
-            appendLine("   `<param_name>: <value>` line per argument (omit optional params you don't need).")
-            appendLine("2. To ask for clarification, a single line `CLARIFY: <your message>`.")
-            appendLine("Use only command and parameter names that appear in the catalog above.")
-            appendLine()
-            appendLine("User request:")
-            append(text)
-        }
-        // Gemma instruction-tuned chat template. Without the turn markers the model doesn't enter
-        // "answer" mode and rambles past its reply, emitting <end_of_turn>/<eos> as literal text and
-        // running until MAX_TOKENS (slow + noisy). The trailing `model` turn primes the response.
-        return "<start_of_turn>user\n$instructions<end_of_turn>\n<start_of_turn>model\n"
+    /** System instruction = role + command catalog + the strict reply format. */
+    private fun buildSystemInstruction(): String = buildString {
+        appendLine(SYSTEM_INSTRUCTION)
+        appendLine()
+        appendLine("Available commands:")
+        appendLine(buildCatalog())
+        appendLine()
+        appendLine("Response format — reply with ONLY one of the following, and nothing else:")
+        appendLine("1. To invoke a command, a line `CALL <command_name>` followed by one")
+        appendLine("   `<param_name>: <value>` line per argument (omit optional params you don't need).")
+        appendLine("2. To ask for clarification, a single line `CLARIFY: <your message>`.")
+        append("Use only command and parameter names that appear in the catalog above.")
     }
 
     /** Compact, low-token command listing: `name(req1, req2, [opt]): description`. */
@@ -372,15 +340,11 @@ class Gemma4NaturalLanguageInterpreter(
         val DEFAULT_AUTH_TOKEN: String? = BuildConfig.HF_TOKEN.ifBlank { null }
 
         // On-device generation is slow, especially the first run (graph warm-up) and on CPU-only
-        // hardware / emulators where prompt prefill alone can take a minute or more. Keep these
-        // generous so a real inference completes instead of being cancelled mid-flight; on a device
-        // with GPU/NNAPI acceleration it finishes well within these bounds.
+        // hardware / emulators. Keep these generous so a real inference completes instead of being
+        // cancelled mid-flight; with GPU acceleration it finishes well within these bounds.
         private const val TAG = "Gemma4Interpreter"
         private const val COLD_TIMEOUT_MS = 180_000L
         private const val STEADY_TIMEOUT_MS = 120_000L
-        // We only need a short `CALL`/`CLARIFY` reply; a small budget bounds worst-case latency.
-        private const val MAX_TOKENS = 512
-        private const val MAX_TOP_K = 64
 
         private const val CALL_PREFIX_LENGTH = 4 // "CALL"
         // The reply ends at the first of these; anything after is the model failing to stop.
