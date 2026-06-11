@@ -55,4 +55,14 @@ class LoginRepositoryImpl(private val context: Context) : LoginRepository {
             LoginResult.Error(e.message ?: "Unknown error occurred")
         }
     }
+
+    override suspend fun logout(): Unit = withContext(Dispatchers.IO) {
+        try {
+            // Ends the session but keeps the local database, so re-login to the same account
+            // reopens it. The downloaded LLM model lives in filesDir and is untouched.
+            initializeD2().userModule().logOut().blockingAwait()
+        } catch (e: Exception) {
+            // Best-effort: return to the login screen regardless of SDK errors.
+        }
+    }
 }

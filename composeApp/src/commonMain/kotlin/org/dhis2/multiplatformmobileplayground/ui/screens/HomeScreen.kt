@@ -1,6 +1,5 @@
 package org.dhis2.multiplatformmobileplayground.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,16 +9,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -75,17 +78,34 @@ fun ProgramCard(program: Program) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    onLogout: () -> Unit,
+    sessionKey: Int,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val notebookViewModel: NotebookViewModel = koinViewModel()
+    // Scope the Notebook VM to the session too, so logout + new login resets its history.
+    val notebookViewModel: NotebookViewModel = koinViewModel(key = "notebook-$sessionKey")
     var selectedTab by remember { mutableStateOf(HomeTab.HOME) }
 
     Scaffold(
         modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = { Text("DHIS2 Playground") },
+                actions = {
+                    IconButton(onClick = onLogout) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = "Log out"
+                        )
+                    }
+                }
+            )
+        },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
@@ -131,118 +151,126 @@ private fun HomeContent(
     uiState: HomeUiState,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    val userInfo = uiState.userInfo
+    val error = uiState.error
+    // Single scrollable list for the whole content (the Scaffold keeps the top bar and nav bar
+    // fixed). Each section is an item so the entire screen scrolls together, not just the programs.
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
+        item { Spacer(modifier = Modifier.height(32.dp)) }
 
-        Text(
-            text = "Welcome!",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        uiState.userInfo?.let { userInfo ->
+        item {
             Text(
-                text = "Hello, ${userInfo.firstName}",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                text = "Welcome!",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.primary
             )
+        }
 
-            Spacer(modifier = Modifier.height(32.dp))
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "User Information",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+        if (userInfo != null) {
+            item {
+                Text(
+                    text = "Hello, ${userInfo.firstName}",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+            item { Spacer(modifier = Modifier.height(32.dp)) }
 
-                    Text(
-                        text = "Username",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = userInfo.username,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "User Information",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    Text(
-                        text = "Server URL",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = userInfo.serverUrl,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                        Text(
+                            text = "Username",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = userInfo.username,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "Server URL",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = userInfo.serverUrl,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            item { Spacer(modifier = Modifier.height(32.dp)) }
 
             // Show loading indicator if programs are being loaded
             if (uiState.isLoading || uiState.isSyncing) {
-                CircularProgressIndicator()
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (uiState.isSyncing) {
-                    Text(
-                        text = "Syncing metadata...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                item {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        if (uiState.isSyncing) {
+                            Text(
+                                text = "Syncing metadata...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
                 }
             }
 
             // Show error message if there was an error loading programs
-            uiState.error?.let { error ->
-                Text(
-                    text = "Error: $error",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+            if (error != null) {
+                item {
+                    Text(
+                        text = "Error: $error",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
 
             // Show programs list
             if (uiState.programs.isNotEmpty()) {
-                Text(
-                    text = "Your Programs",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(uiState.programs) { program ->
-                        ProgramCard(program = program)
-                    }
+                item {
+                    Text(
+                        text = "Your Programs",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(16.dp)) }
+                items(uiState.programs) { program ->
+                    ProgramCard(program = program)
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }

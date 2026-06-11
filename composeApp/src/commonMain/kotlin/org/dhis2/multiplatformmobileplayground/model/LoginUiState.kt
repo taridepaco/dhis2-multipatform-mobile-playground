@@ -10,5 +10,7 @@ data class LoginUiState(
     val isCheckingAuth: Boolean = true,
     val errorMessage: String? = null,
     val isLoginSuccessful: Boolean = false,
-    val userInfo: UserInfo? = null
+    val userInfo: UserInfo? = null,
+    /** Increments on each successful login; used to scope per-session screen state (Home/Notebook). */
+    val sessionId: Int = 0
 )
