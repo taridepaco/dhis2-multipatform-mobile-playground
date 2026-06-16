@@ -38,10 +38,10 @@ class NotebookViewModel(
     init {
         viewModelScope.launch {
             val state = resolver.warmUp { progress -> _interpreterState.value = progress }
-            _interpreterState.value = state
             while (pendingInputs.isNotEmpty()) {
                 executeInput(pendingInputs.removeFirst())
             }
+            _interpreterState.value = state
         }
     }
 

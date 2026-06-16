@@ -8,5 +8,4 @@ sealed interface InterpreterState {
 
     data object Ready : InterpreterState
     data object DslFallback : InterpreterState
-    data object Unavailable : InterpreterState
 }

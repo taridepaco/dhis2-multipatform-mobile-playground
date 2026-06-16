@@ -5,7 +5,6 @@ import org.dhis2.multiplatformmobileplayground.dsl.model.Invocation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNull
 
 class LlmInputResolverTest {
 
@@ -42,24 +41,6 @@ class LlmInputResolverTest {
 
         val result = resolver.resolve("make me a sandwich")
         assertIs<InterpretResult.Clarification>(result)
-    }
-
-    @Test
-    fun shouldFallBackToDslWhenWithDslFallbackTrue() = runTest {
-        val interpreter = FakeNaturalLanguageInterpreter(availableOnConstruction = false)
-        val resolver = LlmInputResolver(
-            interpreter = interpreter,
-            withDslFallback = true
-        )
-        val state = resolver.warmUp()
-
-        assertEquals(InterpreterState.DslFallback, state)
-        // DSL fallback: typed DSL command resolves via DslParser
-        val result = resolver.resolve("help")
-        val resolved = assertIs<InterpretResult.Resolved>(result)
-        assertEquals("help", resolved.invocation.commandName)
-        // DSL mode has no inferredCall
-        assertNull(resolved.inferredCall)
     }
 
     @Test

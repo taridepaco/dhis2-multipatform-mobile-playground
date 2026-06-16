@@ -2,16 +2,14 @@ package org.dhis2.multiplatformmobileplayground.dsl.llm
 
 class LlmInputResolver(
     private val interpreter: NaturalLanguageInterpreter,
-    private val fallback: DslInputResolver = DslInputResolver(),
-    private val withDslFallback: Boolean = false
+    private val fallback: DslInputResolver = DslInputResolver()
 ) : InputResolver {
 
     override val isLlmPlatform: Boolean = true
 
-    private var useFallback: Boolean = withDslFallback
+    private var useFallback: Boolean = false
 
     override suspend fun warmUp(onProgress: (InterpreterState) -> Unit): InterpreterState {
-        if (withDslFallback) return InterpreterState.DslFallback
         interpreter.warmUp(onProgress)
         return if (interpreter.isAvailable) {
             InterpreterState.Ready
