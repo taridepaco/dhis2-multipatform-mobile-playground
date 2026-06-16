@@ -1,7 +1,7 @@
 [versions]
 agp = "8.11.2"
 android-compileSdk = "36"
-android-minSdk = "24"
+android-minSdk = "26"
 android-targetSdk = "36"
 androidx-activity = "1.11.0"
 androidx-appcompat = "1.7.1"
@@ -17,6 +17,7 @@ kotlinx-coroutines = "1.10.2"
 dhis2MobileUi = "0.6.0"
 dhis2AndroidSdk = "1.13.0"
 koin = "4.2.0"
+litertlm = "0.11.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -38,6 +39,7 @@ koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
 koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
 koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
+litertlm-android = { module = "com.google.ai.edge.litertlm:litertlm-android", version.ref = "litertlm" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

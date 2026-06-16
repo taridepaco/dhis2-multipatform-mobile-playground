@@ -83,7 +83,10 @@ class LoginViewModel(
                             isLoading = false,
                             isLoginSuccessful = true,
                             errorMessage = null,
-                            userInfo = result.userInfo
+                            userInfo = result.userInfo,
+                            // New session: bumps the key that scopes Home/Notebook state so they
+                            // start fresh for this account instead of reusing the previous one.
+                            sessionId = it.sessionId + 1
                         )
                     }
                 }
@@ -102,5 +105,14 @@ class LoginViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    /** Ends the DHIS2 session and returns to the login screen. The local DB/LLM model are kept. */
+    fun logout() {
+        viewModelScope.launch(ioDispatcher) {
+            loginRepository.logout()
+            // Reset the form but preserve sessionId (monotonic) so the next login gets a fresh key.
+            _uiState.value = LoginUiState(isCheckingAuth = false, sessionId = _uiState.value.sessionId)
+        }
     }
 }

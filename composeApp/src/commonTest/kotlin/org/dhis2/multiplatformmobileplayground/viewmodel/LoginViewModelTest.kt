@@ -188,15 +188,39 @@ class LoginViewModelTest {
         assertFalse(viewModel.uiState.value.isCheckingAuth)
         assertFalse(viewModel.uiState.value.isLoginSuccessful)
     }
+
+    @Test
+    fun shouldReturnToLoginAndEndSessionWhenLoggedOut() = runTest(testDispatcher) {
+        // Reach a logged-in state via a successful login.
+        viewModel.onServerUrlChanged(TextFieldValue("https://play.dhis2.org/2.40.0"))
+        viewModel.onUsernameChanged(TextFieldValue("admin"))
+        viewModel.onPasswordChanged(TextFieldValue("district"))
+        viewModel.onLoginClicked()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isLoginSuccessful)
+
+        viewModel.logout()
+        advanceUntilIdle()
+
+        assertTrue(fakeRepository.logoutCalled)
+        assertFalse(viewModel.uiState.value.isLoginSuccessful)
+        assertFalse(viewModel.uiState.value.isCheckingAuth)
+        assertNull(viewModel.uiState.value.userInfo)
+    }
 }
 
 class FakeLoginRepository : LoginRepository {
     var loginResult: LoginResult = LoginResult.Success(UserInfo("admin", "Admin", "https://play.dhis2.org/2.40.0"))
     var isLoggedIn: Boolean = false
+    var logoutCalled: Boolean = false
 
     override suspend fun isUserLoggedIn(): Boolean = isLoggedIn
 
     override suspend fun login(credentials: LoginCredentials): LoginResult {
         return loginResult
+    }
+
+    override suspend fun logout() {
+        logoutCalled = true
     }
 }

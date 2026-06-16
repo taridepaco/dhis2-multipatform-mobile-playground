@@ -4,11 +4,13 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import org.dhis2.multiplatformmobileplayground.data.repository.DslExecutorFactory
+import org.dhis2.multiplatformmobileplayground.data.repository.InputResolverFactory
 import org.dhis2.multiplatformmobileplayground.data.repository.LoginRepository
 import org.dhis2.multiplatformmobileplayground.data.repository.ProgramRepository
 import org.dhis2.multiplatformmobileplayground.data.repository.RepositoryFactory
 import org.dhis2.multiplatformmobileplayground.data.repository.UserRepository
 import org.dhis2.multiplatformmobileplayground.dsl.executor.DslExecutor
+import org.dhis2.multiplatformmobileplayground.dsl.llm.InputResolver
 import org.dhis2.multiplatformmobileplayground.viewmodel.HomeViewModel
 import org.dhis2.multiplatformmobileplayground.viewmodel.LoginViewModel
 import org.dhis2.multiplatformmobileplayground.viewmodel.NotebookViewModel
@@ -27,8 +29,11 @@ val appModule: Module = module {
     // DSL executor (platform-specific via DslExecutorFactory)
     single<DslExecutor> { DslExecutorFactory.create() }
 
+    // Input resolver: LLM-backed on Android, DSL-only on iOS/JVM
+    single<InputResolver> { InputResolverFactory.create(get()) }
+
     // ViewModels
     factory { LoginViewModel(get(), get()) }
     factory { HomeViewModel(get(), get()) }
-    factory { NotebookViewModel(get()) }
+    factory { NotebookViewModel(get(), get()) }
 }

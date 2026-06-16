@@ -6,7 +6,7 @@ import org.dhis2.multiplatformmobileplayground.dsl.catalog.CommandRegistry
 import org.dhis2.multiplatformmobileplayground.dsl.model.DslResult
 import org.dhis2.multiplatformmobileplayground.dsl.model.Invocation
 
-class RegistryDslExecutor(private val registry: CommandRegistry) : DslExecutor {
+class RegistryDslExecutor(override val registry: CommandRegistry) : DslExecutor {
     override suspend fun execute(invocation: Invocation): DslResult {
         val handler = registry.find(invocation.commandName)
             ?: return DslResult.Error(

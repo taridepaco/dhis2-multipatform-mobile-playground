@@ -35,8 +35,15 @@ fun App() {
                     }
                 }
                 loginUiState.isLoginSuccessful -> {
-                    val homeViewModel: HomeViewModel = koinViewModel()
-                    HomeScreen(viewModel = homeViewModel)
+                    // Key the screen ViewModels by session so a logout + new login starts fresh
+                    // instead of reusing the previous session's retained instances.
+                    val homeViewModel: HomeViewModel =
+                        koinViewModel(key = "home-${loginUiState.sessionId}")
+                    HomeScreen(
+                        viewModel = homeViewModel,
+                        onLogout = { loginViewModel.logout() },
+                        sessionKey = loginUiState.sessionId
+                    )
                 }
                 else -> {
                     LoginScreen(
