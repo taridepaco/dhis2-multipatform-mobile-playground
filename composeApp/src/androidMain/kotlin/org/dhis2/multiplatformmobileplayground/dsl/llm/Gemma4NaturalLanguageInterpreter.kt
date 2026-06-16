@@ -44,16 +44,15 @@ class Gemma4NaturalLanguageInterpreter(
     private val toolCallMapper: ToolCallMapper = ToolCallMapper(registry),
     private val modelUrl: String = DEFAULT_MODEL_URL,
     private val authToken: String? = DEFAULT_AUTH_TOKEN,
-    modelFile: File = File(context.filesDir, "llm/$MODEL_FILE_NAME"),
-    // App-specific external storage is `adb push`-able and lets the (slow) download be reused: the
-    // model is exported here once downloaded and imported back before re-downloading. Null when no
-    // external storage is mounted. Note this dir is still wiped on uninstall, but re-seeding it is a
-    // fast local copy/push rather than a multi-GB network download.
-    seedFile: File? = context.getExternalFilesDir(null)?.let { File(it, "llm/$MODEL_FILE_NAME") }
+    // Stored in app-specific external storage when available: that dir is `adb push`-able, so the
+    // slow, gated multi-GB download can be re-seeded across clean installs with a fast local push
+    // instead of a network fetch. The model is loaded directly from here — there is no second
+    // internal copy. Falls back to internal filesDir when no external storage is mounted. (Both
+    // locations are wiped on uninstall.)
+    modelFile: File = defaultModelFile(context)
 ) : NaturalLanguageInterpreter {
 
     private val modelPath: String = modelFile.absolutePath
-    private val seedPath: String? = seedFile?.absolutePath
     private val cacheDir: String = context.cacheDir.absolutePath
     private val downloader = ModelDownloader()
 
@@ -74,14 +73,11 @@ class Gemma4NaturalLanguageInterpreter(
     override suspend fun warmUp(onProgress: (InterpreterState) -> Unit) {
         withContext(Dispatchers.IO) {
             mutex.withLock {
-                Log.d(TAG, "Warm-up start. modelPath=$modelPath, seedPath=$seedPath, hasAuthToken=${!authToken.isNullOrBlank()}")
+                Log.d(TAG, "Warm-up start. modelPath=$modelPath, hasAuthToken=${!authToken.isNullOrBlank()}")
                 val present = ensureModelPresent(onProgress)
                 val modelReady = present && loadModel()
                 available = modelReady
                 steadyState = true
-                // Preserve the model in external storage so a reinstall reuses it instead of
-                // downloading ~2.5 GB again. Best-effort: never blocks readiness from succeeding.
-                if (modelReady) exportSeedIfMissing()
                 Log.d(
                     TAG,
                     "Warm-up done. present=$present, available=$available" +
@@ -91,17 +87,13 @@ class Gemma4NaturalLanguageInterpreter(
         }
     }
 
-    /**
-     * Ensures the model exists in app storage, in priority order: already present → import a
-     * preserved copy from external storage → download. Returns false on any failure.
-     */
+    /** Ensures the model exists in app storage: reuse it if already present, otherwise download it. */
     private suspend fun ensureModelPresent(onProgress: (InterpreterState) -> Unit): Boolean {
         val file = File(modelPath)
         if (file.exists() && file.length() > 0L) {
             Log.d(TAG, "Model already present (${file.length()} bytes), skipping download")
             return true
         }
-        if (importFromSeed(file)) return true
         return runCatching {
             Log.d(TAG, "Downloading model from $modelUrl")
             downloader.download(modelUrl, file, authToken) { progress ->
@@ -109,47 +101,6 @@ class Gemma4NaturalLanguageInterpreter(
             }
             Log.d(TAG, "Model download complete (${file.length()} bytes)")
         }.onFailure { Log.e(TAG, "Model download failed", it) }.isSuccess
-    }
-
-    /** Copies a previously preserved model from external storage into app storage, skipping the download. */
-    private fun importFromSeed(modelFile: File): Boolean {
-        val seed = seedPath?.let { File(it) } ?: return false
-        if (!seed.exists() || seed.length() <= 0L) return false
-        return runCatching {
-            Log.d(TAG, "Importing model from seed $seedPath (${seed.length()} bytes)")
-            modelFile.parentFile?.mkdirs()
-            seed.copyTo(modelFile, overwrite = true, bufferSize = COPY_BUFFER_BYTES)
-            Log.d(TAG, "Model import complete (${modelFile.length()} bytes)")
-        }.onFailure {
-            Log.e(TAG, "Model import from seed failed", it)
-            modelFile.delete() // don't leave a half-copied file behind
-        }.isSuccess
-    }
-
-    /** Exports the downloaded model to external storage so it survives a reinstall. Best-effort, non-fatal. */
-    private fun exportSeedIfMissing() {
-        val seed = seedPath?.let { File(it) } ?: return
-        val model = File(modelPath)
-        if (!model.exists() || model.length() <= 0L) return
-        if (seed.exists() && seed.length() == model.length()) return // already preserved
-
-        // Skip if the seed location can't fit the model. On an emulator external storage shares the
-        // (often full) data partition, so attempting the copy would only fail with ENOSPC and leave
-        // a truncated file behind.
-        seed.parentFile?.mkdirs()
-        val free = (seed.parentFile ?: seed).usableSpace
-        if (free < model.length() + SEED_STORAGE_HEADROOM_BYTES) {
-            Log.d(TAG, "Skipping model export: only $free bytes free for a ${model.length()} byte model")
-            return
-        }
-        runCatching {
-            Log.d(TAG, "Exporting model to seed $seedPath for reuse across reinstalls")
-            model.copyTo(seed, overwrite = true, bufferSize = COPY_BUFFER_BYTES)
-            Log.d(TAG, "Model export complete (${seed.length()} bytes)")
-        }.onFailure {
-            Log.e(TAG, "Model export to seed failed (non-fatal)", it)
-            seed.delete() // don't leave a truncated seed that could be wrongly imported later
-        }
     }
 
     /**
@@ -180,6 +131,11 @@ class Gemma4NaturalLanguageInterpreter(
                 return true
             }
         }
+        // No backend could initialize the model. Delete the file so the next warm-up
+        // re-downloads a fresh copy; otherwise a present-but-unloadable model (corrupt or
+        // incompletely seeded but non-zero length) would be reused forever and never re-fetched.
+        Log.w(TAG, "All backends failed to load the model; deleting $modelPath for a fresh re-download")
+        runCatching { File(modelPath).delete() }
         return false
     }
 
@@ -384,6 +340,17 @@ class Gemma4NaturalLanguageInterpreter(
 
     companion object {
         const val MODEL_FILE_NAME = "gemma-4-E2B-it.litertlm"
+
+        /**
+         * The model lives in app-specific external storage (`adb push`-able for re-seeding) when it is
+         * mounted, falling back to internal storage otherwise. It is the single location the model is
+         * downloaded into and loaded from — there is no separate internal copy.
+         */
+        private fun defaultModelFile(context: Context): File {
+            val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
+            return File(baseDir, "llm/$MODEL_FILE_NAME")
+        }
+
         const val DEFAULT_MODEL_URL =
             "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/$MODEL_FILE_NAME"
 
@@ -407,10 +374,6 @@ class Gemma4NaturalLanguageInterpreter(
             Regex("<(?:start_of_turn|end_of_turn|eos|bos|pad|turn|sep|unk)>")
         // DHIS2 UID: exactly 11 chars, a leading letter then letters/digits.
         private val DHIS2_UID = Regex("\\b[A-Za-z][A-Za-z0-9]{10}\\b")
-        // Larger buffer than the default 8 KB to keep the multi-GB model import/export reasonably fast.
-        private const val COPY_BUFFER_BYTES = 1 shl 20 // 1 MB
-        // Free space required beyond the model size before exporting a seed copy.
-        private const val SEED_STORAGE_HEADROOM_BYTES = 256L * 1024L * 1024L // 256 MB
         private const val SYSTEM_INSTRUCTION =
             "You are a DHIS2 notebook assistant. Map the user's natural-language request to exactly " +
             "one of the registered commands. If you cannot confidently map the request, ask for " +
